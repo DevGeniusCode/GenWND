@@ -175,7 +175,7 @@ class WndParser:
             line = line.strip()
 
 
-            if line.startswith("WINDOW"):
+            if line == "WINDOW":
                 # Create a unique UUID for the window
                 window_key = str(uuid.uuid4())
 
@@ -212,21 +212,21 @@ class WndParser:
                 parent_window = new_window  # The new window becomes the current parent
                 current_window = new_window
 
-            elif line.startswith("END"):
+            elif line == "END":
                 # Close the current window and return to the parent
                 if not stack:
                     raise ValueError(f"Unexpected END without a corresponding WINDOW at line {0}.")
                 stack.pop()
                 parent_window = stack[-1] if stack else None  # Update the parent window after popping
 
-            elif line.startswith("CHILD"):
+            elif line == "CHILD":
                 # Handle the CHILD tag (children are implicitly added by the window processing)
                 if not parent_window:
                     raise ValueError(f"Unexpected CHILD without a parent window at line {0}.")
                 # Skip over the CHILD line, it's just a marker for window nesting
                 continue
 
-            elif line.startswith("ENDALLCHILDREN"):
+            elif line == "ENDALLCHILDREN":
                 # Handle the ENDALLCHILDREN tag (ends child block for the current window)
                 if not parent_window or not parent_window.children:
                     raise ValueError(f"ENDALLCHILDREN found without children at line {0}.")
@@ -238,6 +238,7 @@ class WndParser:
                 pass
 
         # Check if there are any unclosed windows left
+
         if stack:
             self._raise_error(0 - 1, "EOF", "Unclosed windows found.")
 
@@ -269,4 +270,103 @@ if __name__ == "__main__":
     print(parser.get_metadata())
 
     print("Windows:")
-    print(parser.get_windows())
+
+
+    def print_window_hierarchy(windows, indent_level=0):
+        """
+        Prints the window hierarchy with names and indentation.
+
+        :param windows: A list of Window objects.
+        :param indent_level: The current indentation level (for recursive calls).
+        """
+        for window in windows:
+            # Extract window name, default to "UNKNOWN" if not found
+            window_name = window.options.name.split(":")[-1]
+            if window_name:
+                complete_name = f"{ window.options.window_type}:{window_name}"
+            else:
+                complete_name = f"{ window.options.window_type}"
+
+            # Print the window name with proper indentation
+            indent = "   " * indent_level  # Use spaces for indent
+            print(f"{indent}{complete_name}")
+            if window.children:
+                print(f"{indent} |")
+                # Recursively print children with increased indent
+                print_window_hierarchy(window.children, indent_level + 1)
+
+    print_window_hierarchy(parser.windows)
+
+
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your config string
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your config string
+    # config_string = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #   CHILD
+    #   WINDOW
+    #     WINDOWTYPE = CHEAKBOX
+    #     NAME = "checkbox1"
+    #   END
+    #     CHILD
+    #     WINDOW
+    #       WINDOWTYPE = CHECKBOX2
+    #       NAME = "checkbox2"
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    #
+    # config_string_2 = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #     ... rest of window options
+    #   CHILD
+    #   WINDOW ; child
+    #     WINDOWTYPE = CHEAKBOX;
+    #     NAME = "checkbox2"
+    #     ... rest of window child options
+    #   END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    # config_string_3 = """
+    # WINDOW
+    #   NAME = "root"
+    #   Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #   CHILD
+    #     WINDOW
+    #     NAME = "child1"
+    #     Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #     CHILD
+    #     WINDOW
+    #       NAME = "child1child1"
+    #       Options: {'OPTION5': 'value5'}
+    #     END
+    #     ENDALLCHILDREN
+    #
+    #     WINDOW
+    #     NAME = "child2"
+    #     Options: {'OPTION3': 'value3'}
+    #   END
+    #     CHILD
+    #       WINDOW
+    #        NAME = "child3"
+    #       Options: {'OPTION4': 'value4'}
+    #       CHILD
+    #         WINDOW
+    #         NAME = "child3child1"
+    #         Options: {'OPTION5': 'value5'}
+    #         END
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """

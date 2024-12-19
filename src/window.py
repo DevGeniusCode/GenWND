@@ -1,10 +1,4 @@
 import re
-from resources.config import config
-def increment_line_number():
-    """
-    Increments the global line_number by 1 each time it is called.
-    """
-    config.line_number += 1
 
 class Window:
     def __init__(self, window_key, config=None, children=None):
@@ -37,9 +31,9 @@ class Config:
         self.tooltip_delay = tooltip_delay
         self.text = text
         self.text_color = text_color
-        self.enabled_draw_data = enabled_draw_data
-        self.disabled_draw_data = disabled_draw_data
-        self.hilited_draw_data = hilited_draw_data
+        self._enabled_draw_data = enabled_draw_data
+        self._disabled_draw_data = disabled_draw_data
+        self._hilited_draw_data = hilited_draw_data
         self.config_fields = config_fields
 
     @property
@@ -49,7 +43,7 @@ class Config:
     @font.setter
     def font(self, value):
         # Font name must be one of the valid options
-        valid_fonts = ["Times New Roman", "Arial", "Courier New"]
+        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed"]
         if value["name"] not in valid_fonts:
             raise ValueError(f"Invalid font name: {value['name']}. Valid options: {valid_fonts}")
 
@@ -152,7 +146,7 @@ class Config:
     # Setter for ENABLEDDRAWDATA
     @property
     def enabled_draw_data(self):
-        return self.enabled_draw_data
+        return self._enabled_draw_data
 
     @enabled_draw_data.setter
     def enabled_draw_data(self, value):
@@ -162,7 +156,7 @@ class Config:
     # Setter for DISABLEDDRAWDATA
     @property
     def disabled_draw_data(self):
-        return self.disabled_draw_data
+        return self._disabled_draw_data
 
     @disabled_draw_data.setter
     def disabled_draw_data(self, value):
@@ -172,96 +166,90 @@ class Config:
     # Setter for HILITEDRAWDATA
     @property
     def hilite_draw_data(self):
-        return self.hilite_draw_data
+        return self._hilited_draw_data
 
     @hilite_draw_data.setter
     def hilite_draw_data(self, value):
         self._validate_draw_data(value)
-        self._hilite_draw_data = value
+        self._hilited_draw_data = value
 
 
-def parse_screenrect(lines):
-    # Initialize an empty string to accumulate the lines
+def parse_screenrect(lines_iter):
     combined_line = ""
-    config.offset = 0
-    for line in lines:
-        # Remove spaces and newlines and append the line
-        combined_line += line.strip()
-        # Check if the line ends with a semicolon
-        if combined_line.endswith(';'):
-            # Perform the regex match when the line ends with a semicolon
-            match = re.match(
-                r"SCREENRECT = UPPERLEFT: (\d+) (\d+),\s*BOTTOMRIGHT: (\d+) (\d+),\s*CREATIONRESOLUTION: (\d+) (\d+);",
-            combined_line
-            )
+    while True:
+        try:
+            line = next(lines_iter)
+            combined_line += line.strip()
+            if combined_line.endswith(';'):
+                match = re.match(
+                    r"SCREENRECT = UPPERLEFT: (\d+) (\d+),\s*BOTTOMRIGHT: (\d+) (\d+),\s*CREATIONRESOLUTION: (\d+) (\d+);",
+                    combined_line
+                )
+                if match:
+                    upper_left_x = int(match.group(1))
+                    upper_left_y = int(match.group(2))
+                    bottom_right_x = int(match.group(3))
+                    bottom_right_y = int(match.group(4))
+                    creation_res_x = int(match.group(5))
+                    creation_res_y = int(match.group(6))
 
-            if match:
-                # Extract the values
-                upper_left_x = int(match.group(1))
-                upper_left_y = int(match.group(2))
-                bottom_right_x = int(match.group(3))
-                bottom_right_y = int(match.group(4))
-                creation_res_x = int(match.group(5))
-                creation_res_y = int(match.group(6))
-
-                return {
-                    'upper_left': (upper_left_x, upper_left_y),
-                    'bottom_right': (bottom_right_x, bottom_right_y),
-                    'creation_resolution': (creation_res_x, creation_res_y)
-                }
-            else:
-                raise ValueError("Invalid SCREENRECT format")
-        config.offset += 1
-
-    # If no match is found, raise an error
+                    return {
+                        "upper_left": (upper_left_x, upper_left_y),
+                        "bottom_right": (bottom_right_x, bottom_right_y),
+                        "creation_resolution": (creation_res_x, creation_res_y),
+                    }
+                else:
+                    raise ValueError("Invalid SCREENRECT format")
+        except StopIteration:
+            break
     raise ValueError("SCREENRECT not found or formatted incorrectly")
 
 
-def parse_text_colors(lines):
+def parse_text_colors(lines_iter):
     combined_line = ""
     text_colors = {}
-    config.offset = 0
-    for line in lines:
-        combined_line += line.strip()
-        if combined_line.endswith(';'):
-
-            match = re.findall(r'(\w+):\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+);?', combined_line)
-
-            if match:
-                for key, r, g, b, a in match:
-                    text_colors[key] = (int(r), int(g), int(b), int(a))
-                return text_colors
-            else:
-                raise ValueError("Invalid text color format")
-
-        config.offset += 1
-
-    return ValueError("TEXTCOLOR not found or formatted incorrectly")
+    while True:
+        try:
+            line = next(lines_iter)
+            combined_line += line.strip()
+            if combined_line.endswith(';'):
+                match = re.findall(r'(\w+):\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+);?', combined_line)
+                if match:
+                    for key, r, g, b, a in match:
+                        text_colors[key] = (int(r), int(g), int(b), int(a))
+                    return text_colors
+                else:
+                    raise ValueError("Invalid text color format")
+        except StopIteration:
+            break
+    raise ValueError("TEXTCOLOR not found or formatted incorrectly")
 
 
-def parse_draw_data(lines):
+def parse_draw_data(lines_iter):
     # Function to parse draw data with IMAGE, COLOR, BORDERCOLOR
     draw_data = []
     combined_line = ""
-    config.offset = 0  # Initialize offset
-    for line_num, line in enumerate(lines, start=1):
-        combined_line += line.strip()
-        if combined_line.endswith(';'):
-            draw_matches = re.findall(r'IMAGE: (\S+), COLOR: (\d+ \d+ \d+ \d+), BORDERCOLOR: (\d+ \d+ \d+ \d+)',
-                                      combined_line)
-            if draw_matches:
-                for image, color, border_color in draw_matches:
-                    draw_data.append({
-                        "image": image,
-                        "color": tuple(map(int, color.split())),
-                        "border_color": tuple(map(int, border_color.split()))
-                    })
-                return draw_data  # Return if valid data found
-            else:
-                raise ValueError(f"Invalid draw data format at line {line_num}")
+    while True:
+        try:
+            line = next(lines_iter)
+            combined_line += line.strip()
+            if combined_line.endswith(';'):
+                draw_matches = re.findall(r'IMAGE: (\S+), COLOR: (\d+ \d+ \d+ \d+), BORDERCOLOR: (\d+ \d+ \d+ \d+)',
+                                          combined_line)
+                if draw_matches:
+                    for image, color, border_color in draw_matches:
+                        draw_data.append({
+                            "image": image,
+                            "color": tuple(map(int, color.split())),
+                            "border_color": tuple(map(int, border_color.split()))
+                        })
+                    return draw_data  # Return if valid data found
+                else:
+                    raise ValueError(f"Invalid draw data format")
+        except StopIteration:
+            break
+    raise ValueError("Draw data not found or formatted incorrectly")
 
-        config.offset += 1
-    raise ValueError("Draw data not found or formatted incorrectly")  # Raise error if no data found
 
 def parse_color_field(value):
     # Function to parse color-related properties (like TEXTCOLOR)
@@ -273,44 +261,49 @@ def parse_color_field(value):
     return color_data
 
 
-def parse_config_fields(lines):
+def parse_config_fields(lines_iter):
     # Dictionary to store parsed values
     config_fields = {}
     combined_line = ""
-    config.offset = 0
-    # Regex pattern for extracting tags and their values
-    tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^\;]+);')
-
-    for line in lines:
-        combined_line += line.strip()
-        if combined_line.endswith(';'):
-            # Match lines with a simple tag-value pair
-
-            match = tag_value_pattern.match(combined_line)
-            if match:
-                tag, value = match.groups()
-                value = value.strip()
-                # Handling draw data (like IMAGE, COLOR, BORDERCOLOR)
-                if tag.endswith("DRAWDATA"):
-                    config_fields[tag] = parse_draw_data(combined_line.splitlines())
-                # Handle complex DATA fields (e.g., COMBOBOXDATA, etc.)
-                elif tag.endswith("DATA"):
-                    subfields = {}
-                    # For cases like COMBOBOXDATA: ISEDITABLE: 0, MAXCHARS: 16, ...
-                    subfield_matches = re.findall(r'(\w+):\s*([^,;]+)(?:,|$)', value)
-                    for name, subfield_value in subfield_matches:
-                        subfields[name] = int(subfield_value.strip())
-                    config_fields[tag] = subfields
-                    config.offset += len(subfields)-1
-            else:
-                raise ValueError("Invalid config field format")
-            combined_line = ""
-        config.offset += 1
-
+    tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
+    while True:
+        try:
+            line = next(lines_iter)
+            combined_line += line.strip()
+            if combined_line.endswith(';'):
+                match = tag_value_pattern.match(combined_line)
+                if match:
+                    tag, value = match.groups()
+                    value = value.strip()
+                    # Handling draw data (like IMAGE, COLOR, BORDERCOLOR)
+                    if tag.endswith("DRAWDATA"):
+                        config_fields[tag] = parse_draw_data(iter(combined_line.splitlines()))
+                    elif tag.endswith("DATA"):
+                        subfields = {}
+                        sub_lines_iter = iter(value.split(',')) # create iterator for subfields
+                        while True:
+                             try:
+                                  sub_line = next(sub_lines_iter).strip()
+                                  sub_match = re.match(r'(\w+):\s*([^,;]+)(?:,|$)', sub_line)
+                                  if sub_match:
+                                       sub_name, sub_value = sub_match.groups()
+                                       subfields[sub_name] = int(sub_value.strip())
+                                  elif sub_line: # Skip empty subfields
+                                        raise ValueError(f"Invalid subfield format: '{sub_line}'")
+                             except StopIteration:
+                                  break
+                        config_fields[tag] = subfields
+                    else:
+                        raise ValueError("Invalid data")
+                else:
+                    raise ValueError("Invalid config field format")
+                combined_line = ""
+        except StopIteration:
+            break
     return config_fields
 
-# Function to parse the configuration file and return a Config object
-def parse_window_config(lines):
+# Function to parse the window configuration and return a Config object
+def parse_window_config(lines_iter):
     # Initialize variables to store parsed data
     window_type = ""
     screen_rect = {}
@@ -330,93 +323,110 @@ def parse_window_config(lines):
     disabled_draw_data = []
     hilited_draw_data = {}
     config_fields = {}
-    i = 0;
-    while i < len(lines):
-    # for line in lines:
-        line = lines[i].strip().rstrip(";")
-        # Extract the tag (first word before the '=' sign)
-        tag = line.split('=')[0].strip()
 
-        # Parse each line based on its tag
-        match tag:
-            # Handle WINDOWTYPE line
-            case "WINDOWTYPE":
-                window_type = line.split("=")[1].strip()
+    # A list to track tags we've seen so far, in the order they were encountered
+    encountered_tags = []
 
-            # Handle SCREENRECT line
-            case "SCREENRECT":
-                screen_rect = parse_screenrect (lines[i:])
-                i += config.offset
-                config.line_number += config.offset
+    # Define the correct order of tags
+    correct_tag_order = [
+        "WINDOWTYPE", "SCREENRECT", "NAME", "STATUS", "STYLE",
+        "SYSTEMCALLBACK", "INPUTCALLBACK", "TOOLTIPCALLBACK", "DRAWCALLBACK",
+        "FONT", "HEADERTEMPLATE", "TOOLTIPDELAY", "TEXT", "TEXTCOLOR",
+        "ENABLEDDRAWDATA", "DISABLEDDRAWDATA", "HILITEDRAWDATA"
+    ]
+    while True:
+        try:
+            line = next(lines_iter)
+            line = line.strip().rstrip(";")  # Clean up the line
 
-            # Handle NAME line
-            case "NAME":
-                name = line.split("=")[1].strip().strip('"')
+            if "=" not in line:
+                continue  # Skip invalid lines without '='
 
-            # Handle multiple STATUS values (e.g., ENABLED+IMAGE)
-            case "STATUS":
-                status = [s.strip() for s in line.strip().split("=")[1].split("+")]
+            tag = line.split('=')[0].strip()
 
-            # Handle multiple STYLE values (e.g., MOUSETRACK+COMBOBOX)
-            case "STYLE":
-                style = [s.strip() for s in line.strip().split("=")[1].strip().split("+")]
+            # Check if the tag appears in the correct order
+            if tag in correct_tag_order:
+                expected_index = correct_tag_order.index(tag)
+                if encountered_tags:
+                    last_encountered_tag = encountered_tags[-1]
+                    last_encountered_index = correct_tag_order.index(last_encountered_tag)
+                    if expected_index < last_encountered_index:
+                        # If the tag appears out of order, raise an error using _raise_error
+                        raise ValueError(f"Tag '{tag}' appeared out of order. Expected after '{last_encountered_tag}'.")
+            # Parse each line based on its tag
+            match tag:
+                case "WINDOWTYPE":
+                    window_type = line.split("=")[1].strip()
 
-            # Handle CALLBACK lines
-            case "SYSTEMCALLBACK" | "INPUTCALLBACK" | "TOOLTIPCALLBACK" | "DRAWCALLBACK":
-                callback_value = line.split("=")[1].strip().strip('"')
-                match tag:
-                    case "SYSTEMCALLBACK": system_callback = callback_value
-                    case "INPUTCALLBACK": input_callback = callback_value
-                    case "TOOLTIPCALLBACK": tooltip_callback = callback_value
-                    case "DRAWCALLBACK": draw_callback = callback_value
+                case "SCREENRECT":
+                    lines_iter = iter([line] + list(lines_iter))
+                    screen_rect = parse_screenrect(lines_iter)
 
-            # Handle FONT line
-            case "FONT":
-                match = re.match(r'FONT = NAME: "(.+)", SIZE: (\d+), BOLD: (\d+)?', line)
-                if match:
-                    font = {
-                        "name": match.group(1),
-                        "size": int(match.group(2)),
-                        "bold": int(match.group(3))
-                    }
+                case "NAME":
+                    name = line.split("=")[1].strip().strip('"')
 
-            # Handle HEADERTEMPLATE line
-            case "HEADERTEMPLATE":
-                header_template = line.split("=")[1].strip().strip('"')
+                # Handle multiple STATUS values (e.g., ENABLED+IMAGE)
+                case "STATUS":
+                    status = [s.strip() for s in line.strip().split("=")[1].split("+")]
 
-            # Handle TOOLTIPDELAY line
-            case "TOOLTIPDELAY":
-                tooltip_delay = int(line.split("=")[1].strip())
+                # Handle multiple STYLE values (e.g., MOUSETRACK+COMBOBOX)
+                case "STYLE":
+                    style = [s.strip() for s in line.strip().split("=")[1].strip().split("+")]
 
-            # Handle TEXTCOLOR line
-            case "TEXTCOLOR":
-                text_color = parse_text_colors(lines[i:])
-                i += config.offset
-                config.line_number += config.offset
+                # Handle CALLBACK lines
+                case "SYSTEMCALLBACK" | "INPUTCALLBACK" | "TOOLTIPCALLBACK" | "DRAWCALLBACK":
+                    callback_value = line.split("=")[1].strip().strip('"')
+                    match tag:
+                        case "SYSTEMCALLBACK": system_callback = callback_value
+                        case "INPUTCALLBACK": input_callback = callback_value
+                        case "TOOLTIPCALLBACK": tooltip_callback = callback_value
+                        case "DRAWCALLBACK": draw_callback = callback_value
 
-            # Handle DRAWDATA lines
-            case "ENABLEDDRAWDATA":
-                enabled_draw_data = parse_draw_data(lines[i:])
-                i += config.offset
-                config.line_number += config.offset
+                case "FONT":
+                    match = re.match(r'FONT = NAME: "(.+)", SIZE: (\d+), BOLD: (\d+)?', line)
+                    if match:
+                        font = {
+                            "name": match.group(1),
+                            "size": int(match.group(2)),
+                            "bold": int(match.group(3))
+                        }
 
-            case "DISABLEDDRAWDATA":
-                disabled_draw_data = parse_draw_data(lines[i:])
-                i += config.offset
-                config.line_number += config.offset
+                case "HEADERTEMPLATE":
+                    header_template = line.split("=")[1].strip().strip('"')
 
-            case "HILITEDRAWDATA":
-                hilited_draw_data = parse_draw_data(lines[i:])
-                i += config.offset
-                config.line_number += config.offset
+                case "TOOLTIPDELAY":
+                    tooltip_delay = int(line.split("=")[1].strip())
 
-            # Handle other fields or additional custom parsing
-            case _:
-                config_fields = parse_config_fields(lines[i:])
-        i += 1
-        increment_line_number()
+                case "TEXT":
+                    text = line.split("=")[1].strip()
 
-    # Create a Config object with the parsed data
+                case "TEXTCOLOR":
+                    lines_iter = iter([line] + list(lines_iter))
+                    text_color = parse_text_colors(lines_iter)
+
+                # Handle DRAWDATA lines
+                case "ENABLEDDRAWDATA":
+                    lines_iter = iter([line] + list(lines_iter))
+                    enabled_draw_data = parse_draw_data(lines_iter)
+
+                case "DISABLEDDRAWDATA":
+                    lines_iter = iter([line] + list(lines_iter))
+                    disabled_draw_data = parse_draw_data(lines_iter)
+
+                case "HILITEDRAWDATA":
+                    lines_iter = iter([line] + list(lines_iter))
+                    hilited_draw_data = parse_draw_data(lines_iter)
+
+                # Handle other fields or additional custom parsing
+                case _:
+                    lines_iter = iter([line] + list(lines_iter))
+                    config_fields = parse_config_fields(lines_iter)
+
+            # After processing, add the tag to the list of encountered tags
+            encountered_tags.append(tag)
+        except StopIteration:
+            break
+        # Create and return a Config object with the parsed data
     return Config(
         window_type=window_type,
         screen_rect=screen_rect,

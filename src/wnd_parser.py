@@ -242,6 +242,8 @@ class WndParser:
             self._raise_error(0 - 1, "EOF", "Unclosed windows found.")
 
 
+
+
     def get_metadata(self):
         """
         Get the parsed metadata from the file.

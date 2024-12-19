@@ -15,7 +15,7 @@ class Window:
 class Config:
     def __init__(self, window_type, screen_rect, name, status, style,
                  system_callback, input_callback, tooltip_callback, draw_callback,
-                 font, header_template, tooltip_delay, text, text_color, enabled_draw_data,
+                 font, header_template, tooltip_text, tooltip_delay, text, text_color, enabled_draw_data,
                  disabled_draw_data, hilited_draw_data, config_fields):
         self.window_type = window_type
         self.screen_rect = screen_rect
@@ -28,6 +28,7 @@ class Config:
         self.draw_callback = draw_callback
         self.font = font
         self.header_template = header_template
+        self.tooltip_text = tooltip_text
         self.tooltip_delay = tooltip_delay
         self.text = text
         self.text_color = text_color
@@ -43,7 +44,7 @@ class Config:
     @font.setter
     def font(self, value):
         # Font name must be one of the valid options
-        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed"]
+        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals"]
         if value["name"] not in valid_fonts:
             raise ValueError(f"Invalid font name: {value['name']}. Valid options: {valid_fonts}")
 
@@ -316,6 +317,7 @@ def parse_window_config(lines_iter):
     draw_callback = ""
     font = {}
     header_template = ""
+    tooltip_text = ""
     tooltip_delay = None
     text = ""
     text_color = {}
@@ -331,7 +333,7 @@ def parse_window_config(lines_iter):
     correct_tag_order = [
         "WINDOWTYPE", "SCREENRECT", "NAME", "STATUS", "STYLE",
         "SYSTEMCALLBACK", "INPUTCALLBACK", "TOOLTIPCALLBACK", "DRAWCALLBACK",
-        "FONT", "HEADERTEMPLATE", "TOOLTIPDELAY", "TEXT", "TEXTCOLOR",
+        "FONT", "HEADERTEMPLATE", "TOOLTIPTEXT", "TOOLTIPDELAY", "TEXT", "TEXTCOLOR",
         "ENABLEDDRAWDATA", "DISABLEDDRAWDATA", "HILITEDRAWDATA"
     ]
     while True:
@@ -394,6 +396,9 @@ def parse_window_config(lines_iter):
                 case "HEADERTEMPLATE":
                     header_template = line.split("=")[1].strip().strip('"')
 
+                case "TOOLTIPTEXT":
+                    tooltip_text =  line.split("=")[1].strip()
+
                 case "TOOLTIPDELAY":
                     tooltip_delay = int(line.split("=")[1].strip())
 
@@ -439,6 +444,7 @@ def parse_window_config(lines_iter):
         draw_callback=draw_callback,
         font=font,
         header_template=header_template,
+        tooltip_text=tooltip_text,
         tooltip_delay=tooltip_delay,
         text=text,
         text_color=text_color,

@@ -1,11 +1,14 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QTreeView, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
-    QFileDialog, QPushButton, QToolBar, QMessageBox, QSplitter, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
+    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QSize, QPoint
+from PyQt6.QtCore import Qt
 import os
 
+from object_tree import ObjectTree
 from file_tree import FileTree
+from src.window.wnd_parser import WndParser
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -32,7 +35,7 @@ class MainWindow(QMainWindow):
         open_file_action.triggered.connect(self.open_file)
         open_folder_action.triggered.connect(self.open_folder)
 
-        # File Tree Toggle Button (vertical orientation when on the sides)
+        # File Tree Toggle Button
         toolbar = QToolBar()
         self.addToolBar(toolbar)
         self.toggle_file_tree_button = QPushButton("Toggle Files", self)
@@ -53,12 +56,12 @@ class MainWindow(QMainWindow):
         file_tree_widget = QWidget()
         file_tree_widget.setLayout(file_tree_layout)
 
-        # Objects tree
-        self.object_tree = QTreeView()
+        # Objects Tree (where wnd file will be choice)
+        self.object_tree = ObjectTree(self)
         self.object_tree.setHeaderHidden(True)
         self.object_tree.setMinimumWidth(300)
 
-        # property editor
+        # Property Editor (for window details)
         self.property_editor = QTableView()
         self.property_editor.setMinimumWidth(300)
 
@@ -69,10 +72,6 @@ class MainWindow(QMainWindow):
         self.toggle_property_editor_button = QPushButton("Toggle Properties", self)
         self.toggle_property_editor_button.clicked.connect(self.toggle_property_editor_visibility)
         toolbar.addWidget(self.toggle_property_editor_button)
-
-        # Store buttons in a list for orientation handling
-        self.toggle_buttons = [self.toggle_file_tree_button, self.toggle_object_tree_button,
-                               self.toggle_property_editor_button]
 
         # Splitter for resizable file tree
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -88,18 +87,10 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout()
         layout.addWidget(splitter)
 
-        # layout.addWidget(self.file_tree, 1) # Make tree view flexible width
-        # layout.addWidget(self.object_tree, 3)
-        # layout.addWidget(self.property_editor, 3)
-        # layout.setStretch(1, 2)
-
         # Setting the main widget
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
-        self.file_tree.setVisible(True)
-        self.object_tree.setVisible(True)
-        self.property_editor.setVisible(True)
 
         self.update_root_path_label()
 
@@ -148,7 +139,16 @@ class MainWindow(QMainWindow):
         file, _ = QFileDialog.getOpenFileName(self, "Open File", "", "WND Files (*.wnd);;All Files (*)")
         if file:
             print(f"File selected: {file}")
-            # Implement file opening logic here (e.g., read content)
+            self.load_wnd_file(file)
+
+    def load_wnd_file(self, file_path):
+        """Load and parse the WND file, then display the object tree"""
+        parser = WndParser()
+        parser.parse_file(file_path)  # Parse the WND file
+        windows = parser.get_windows()  # Get the list of windows (hierarchy)
+
+        # Load the objects into the object tree view
+        self.object_tree.load_objects(windows)
 
     def open_folder(self):
         """Handle opening a folder"""
@@ -157,7 +157,6 @@ class MainWindow(QMainWindow):
             self.file_tree.set_root_path(folder)
             self.update_root_path_label()
             print(f"Folder selected: {folder}")
-            # Implement folder opening logic here (e.g., show contents)
 
 
 if __name__ == "__main__":

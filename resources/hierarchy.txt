@@ -1,0 +1,117 @@
+WINDOW
+  WINDOWTYPE = USER
+  NAME = "dummy"
+	... rest of window options
+  CHILD
+  WINDOW ; child
+    WINDOWTYPE = CHEAKBOX;
+	... rest of window child options
+  END
+  ENDALLCHILDREN
+END
+
+
+NAME
+  |
+  |- NAME
+  |
+  |- NAME
+       |
+       |-NAME
+
+
+
+Window Key: uud
+Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+Children: [
+    Window Key: uud
+    Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    Children: []
+
+    Window Key: uud
+    Options: {'OPTION3': 'value3'}
+    Children: []
+
+    Window Key: uud
+    Options: {'OPTION4': 'value4'}
+    Children: [
+        Window Key: uud
+        Options: {'OPTION5': 'value5'}
+        Children: []
+    ]
+]
+
+
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your config string
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your config string
+    # config_string = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #   CHILD
+    #   WINDOW
+    #     WINDOWTYPE = CHEAKBOX
+    #     NAME = "checkbox1"
+    #   END
+    #     CHILD
+    #     WINDOW
+    #       WINDOWTYPE = CHECKBOX2
+    #       NAME = "checkbox2"
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    #
+    # config_string_2 = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #     ... rest of window options
+    #   CHILD
+    #   WINDOW ; child
+    #     WINDOWTYPE = CHEAKBOX;
+    #     NAME = "checkbox2"
+    #     ... rest of window child options
+    #   END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    # config_string_3 = """
+    # WINDOW
+    #   NAME = "root"
+    #   Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #   CHILD
+    #     WINDOW
+    #     NAME = "child1"
+    #     Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #     CHILD
+    #     WINDOW
+    #       NAME = "child1child1"
+    #       Options: {'OPTION5': 'value5'}
+    #     END
+    #     ENDALLCHILDREN
+    #
+    #     WINDOW
+    #     NAME = "child2"
+    #     Options: {'OPTION3': 'value3'}
+    #   END
+    #     CHILD
+    #       WINDOW
+    #        NAME = "child3"
+    #       Options: {'OPTION4': 'value4'}
+    #       CHILD
+    #         WINDOW
+    #         NAME = "child3child1"
+    #         Options: {'OPTION5': 'value5'}
+    #         END
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """
+

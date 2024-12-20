@@ -1,6 +1,6 @@
 import re
 from src.error_handler import ErrorHandler
-from line_iterator import LineIterator
+from src.window.line_iterator import LineIterator
 
 
 class Window:

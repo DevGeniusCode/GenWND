@@ -1,4 +1,7 @@
 import re
+from src.error_handler import ErrorHandler
+from line_iterator import LineIterator
+
 
 class Window:
     def __init__(self, window_key, config=None, children=None):
@@ -92,8 +95,8 @@ class Config:
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
             raise ValueError(f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
-
-        # Check that bottom_right coordinates are within the bounds of creation_resolution
+        #
+        # # Check that bottom_right coordinates are within the bounds of creation_resolution
         if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
             raise ValueError(f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
 
@@ -189,8 +192,8 @@ def parse_screenrect(lines_iter):
     combined_line = ""
     while True:
         try:
-            line = next(lines_iter)
-            combined_line += line.strip()
+            line = lines_iter.peek().strip()
+            combined_line += line
             if combined_line.endswith(';'):
                 match = re.match(
                     r"SCREENRECT = UPPERLEFT: (\d+) (\d+),\s*BOTTOMRIGHT: (\d+) (\d+),\s*CREATIONRESOLUTION: (\d+) (\d+);",
@@ -211,6 +214,7 @@ def parse_screenrect(lines_iter):
                     }
                 else:
                     raise ValueError("Invalid SCREENRECT format")
+            next(lines_iter)
         except StopIteration:
             break
     raise ValueError("SCREENRECT not found or formatted incorrectly")
@@ -221,8 +225,8 @@ def parse_text_colors(lines_iter):
     text_colors = {}
     while True:
         try:
-            line = next(lines_iter)
-            combined_line += line.strip()
+            line = lines_iter.peek().strip()
+            combined_line += line
             if combined_line.endswith(';'):
                 match = re.findall(r'(\w+):\s*(\d+)\s*(\d+)\s*(\d+)\s*(\d+);?', combined_line)
                 if match:
@@ -231,6 +235,7 @@ def parse_text_colors(lines_iter):
                     return text_colors
                 else:
                     raise ValueError("Invalid text color format")
+            next(lines_iter)
         except StopIteration:
             break
     raise ValueError("TEXTCOLOR not found or formatted incorrectly")
@@ -242,8 +247,8 @@ def parse_draw_data(lines_iter):
     combined_line = ""
     while True:
         try:
-            line = next(lines_iter)
-            combined_line += line.strip()
+            line = lines_iter.peek().strip()
+            combined_line += line
             if combined_line.endswith(';'):
                 draw_matches = re.findall(r'IMAGE: (\S+), COLOR: (\d+ \d+ \d+ \d+), BORDERCOLOR: (\d+ \d+ \d+ \d+)',
                                           combined_line)
@@ -256,7 +261,9 @@ def parse_draw_data(lines_iter):
                         })
                     return draw_data  # Return if valid data found
                 else:
-                    raise ValueError(f"Invalid draw data format")
+                    raise ValueError("Invalid draw data format")
+
+            next(lines_iter)
         except StopIteration:
             break
     raise ValueError("Draw data not found or formatted incorrectly")
@@ -279,8 +286,10 @@ def parse_config_fields(lines_iter):
     tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
     while True:
         try:
-            line = next(lines_iter)
-            combined_line += line.strip()
+            line = lines_iter.peek().strip()
+            if line in ["END", "CHILD"]:
+                break
+            combined_line += line
             if combined_line.endswith(';'):
                 match = tag_value_pattern.match(combined_line)
                 if match:
@@ -288,10 +297,10 @@ def parse_config_fields(lines_iter):
                     value = value.strip()
                     # Handling draw data (like IMAGE, COLOR, BORDERCOLOR)
                     if tag.endswith("DRAWDATA"):
-                        config_fields[tag] = parse_draw_data(iter(combined_line.splitlines()))
+                        config_fields[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
                     elif tag.endswith("DATA"):
                         subfields = {}
-                        sub_lines_iter = iter(value.split(',')) # create iterator for subfields
+                        sub_lines_iter = LineIterator(value.split(',')) # create iterator for subfields
                         while True:
                              try:
                                   sub_line = next(sub_lines_iter).strip()
@@ -309,6 +318,7 @@ def parse_config_fields(lines_iter):
                 else:
                     raise ValueError("Invalid config field format")
                 combined_line = ""
+            next(lines_iter)
         except StopIteration:
             break
     return config_fields
@@ -348,8 +358,11 @@ def parse_window_config(lines_iter):
     ]
     while True:
         try:
-            line = next(lines_iter)
-            line = line.strip().rstrip(";")  # Clean up the line
+            line = lines_iter.peek().strip().rstrip(";")  # Clean up the line
+
+            # If we encounter END or CHILD, break the loop
+            if line in ["END", "CHILD", "ENDALLCHILDREN"]:
+                break
 
             if "=" not in line:
                 continue  # Skip invalid lines without '='
@@ -371,7 +384,6 @@ def parse_window_config(lines_iter):
                     window_type = line.split("=")[1].strip()
 
                 case "SCREENRECT":
-                    lines_iter = iter([line] + list(lines_iter))
                     screen_rect = parse_screenrect(lines_iter)
 
                 case "NAME":
@@ -416,50 +428,57 @@ def parse_window_config(lines_iter):
                     text = line.split("=")[1].strip()
 
                 case "TEXTCOLOR":
-                    lines_iter = iter([line] + list(lines_iter))
                     text_color = parse_text_colors(lines_iter)
 
                 # Handle DRAWDATA lines
                 case "ENABLEDDRAWDATA":
-                    lines_iter = iter([line] + list(lines_iter))
                     enabled_draw_data = parse_draw_data(lines_iter)
 
                 case "DISABLEDDRAWDATA":
-                    lines_iter = iter([line] + list(lines_iter))
                     disabled_draw_data = parse_draw_data(lines_iter)
 
                 case "HILITEDRAWDATA":
-                    lines_iter = iter([line] + list(lines_iter))
                     hilited_draw_data = parse_draw_data(lines_iter)
 
                 # Handle other fields or additional custom parsing
                 case _:
-                    lines_iter = iter([line] + list(lines_iter))
                     config_fields = parse_config_fields(lines_iter)
 
             # After processing, add the tag to the list of encountered tags
+            line = lines_iter.peek().strip().rstrip(";")
             encountered_tags.append(tag)
+            if line in ["END", "CHILD", "ENDALLCHILDREN"]:
+                break
+
+            next(lines_iter)
+
         except StopIteration:
             break
-        # Create and return a Config object with the parsed data
-    return Config(
-        window_type=window_type,
-        screen_rect=screen_rect,
-        name=name,
-        status=status,
-        style=style,
-        system_callback=system_callback,
-        input_callback=input_callback,
-        tooltip_callback=tooltip_callback,
-        draw_callback=draw_callback,
-        font=font,
-        header_template=header_template,
-        tooltip_text=tooltip_text,
-        tooltip_delay=tooltip_delay,
-        text=text,
-        text_color=text_color,
-        enabled_draw_data=enabled_draw_data,
-        disabled_draw_data=disabled_draw_data,
-        hilited_draw_data=hilited_draw_data,
-        config_fields=config_fields
-    )
+        except ValueError as e:
+            ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, e)
+
+    # Return the Config object with the parsed data
+    try:
+        return Config(
+            window_type=window_type,
+            screen_rect=screen_rect,
+            name=name,
+            status=status,
+            style=style,
+            system_callback=system_callback,
+            input_callback=input_callback,
+            tooltip_callback=tooltip_callback,
+            draw_callback=draw_callback,
+            font=font,
+            header_template=header_template,
+            tooltip_text=tooltip_text,
+            tooltip_delay=tooltip_delay,
+            text=text,
+            text_color=text_color,
+            enabled_draw_data=enabled_draw_data,
+            disabled_draw_data=disabled_draw_data,
+            hilited_draw_data=hilited_draw_data,
+            config_fields=config_fields
+        )
+    except ValueError as e:
+        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, -1, e)

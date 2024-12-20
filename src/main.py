@@ -1,9 +1,11 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QTreeView, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, QFileDialog, QPushButton, QToolBar, QMessageBox, QSplitter
-from PyQt6.QtGui import QAction, QColor
-from file_tree import FileTree
+from PyQt6.QtWidgets import QApplication, QTreeView, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
+    QFileDialog, QPushButton, QToolBar, QMessageBox, QSplitter
+from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QSize
 import os
+
+from file_tree import FileTree
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -15,18 +17,22 @@ class MainWindow(QMainWindow):
         menu_bar = QMenuBar()
         self.setMenuBar(menu_bar)
         file_menu = menu_bar.addMenu("File")
+
+        # File menu actions
         open_file_action = QAction("Open File", self)
         open_folder_action = QAction("Open Folder", self)
         save_action = QAction("Save", self)
-        file_menu.addActions([open_file_action, open_folder_action, save_action])
-        # Add toplevel Actions
-        add_file_action = QAction("Add File",self)
-        add_folder_action = QAction("Add Folder",self)
-        file_menu.addActions([add_file_action,add_folder_action])
+        add_file_action = QAction("Add File", self)
+        add_folder_action = QAction("Add Folder", self)
+        file_menu.addActions([open_file_action, open_folder_action, save_action, add_file_action, add_folder_action])
+
+        # Connect menu actions
         add_file_action.triggered.connect(self.add_file_menu)
         add_folder_action.triggered.connect(self.add_folder_menu)
+        open_file_action.triggered.connect(self.open_file)
+        open_folder_action.triggered.connect(self.open_folder)
 
-        # File Tree Toggle Button
+        # File Tree Toggle Button (vertical orientation when on the sides)
         toolbar = QToolBar()
         self.addToolBar(toolbar)
         self.toggle_file_tree_button = QPushButton("Toggle Files", self)
@@ -36,10 +42,6 @@ class MainWindow(QMainWindow):
         # File Tree
         self.file_tree = FileTree(self)
         self.file_tree.setMinimumWidth(250)
-        # self.file_tree.setFixedWidth(300) # Set initial width for file tree
-        # Connect Actions
-        open_file_action.triggered.connect(self.open_file)
-        open_folder_action.triggered.connect(self.open_folder)
 
         # Objects tree
         self.object_tree = QTreeView()
@@ -89,16 +91,18 @@ class MainWindow(QMainWindow):
         self.load_styles()
 
     def add_file_menu(self):
+        """Handles the 'Add File' action from the menu"""
         current_path = self.file_tree.model.rootPath()
         if current_path:
-          self.file_tree.add_file_action_handler(current_path)
+            self.file_tree.add_file_action_handler(current_path)
 
     def add_folder_menu(self):
         current_path = self.file_tree.model.rootPath()
         if current_path:
-           self.file_tree.add_folder_action_handler(current_path)
+            self.file_tree.add_folder_action_handler(current_path)
 
     def load_styles(self):
+        """Loads the stylesheet from the resources directory"""
         try:
             with open("resources/styles.qss", "r") as style_file:
                 self.setStyleSheet(style_file.read())

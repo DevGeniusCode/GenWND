@@ -71,8 +71,6 @@ class FileTree(QTreeView):
         return super().isExpandable(index)
 
 
-
-
     def show_context_menu(self, pos):
         """Show context menu for file operations (e.g., add, delete)"""
 

@@ -1,0 +1,67 @@
+QMainWindow {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+QTreeView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+}
+
+QTableView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #333333;
+}
+
+QMenuBar {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+QMenu {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+QHeaderView::section {
+    background-color: #333333;
+    color: #ffffff;
+    border: none;
+}
+
+QSplitter::handle {
+    background-color: #121212; /* Set the color of the handle */
+}
+
+/* Highlight selected menu item */
+QMenuBar::item:selected {
+    background-color: #1e1e1e;  /* Background color example */
+    color: #d4d4d4;  /* Text color white */
+    border-radius: 5px;
+}
+
+/* Add a thin border below the menu */
+QMenuBar {
+    border-bottom: 1px solid #333333;  /* Thin border at the bottom of the menu */
+    border-radius: 5px;
+}
+
+/* Highlight selected item in context menu */
+QMenu::item:selected {
+    background-color: #333333; ;
+    color: #d4d4d4;
+    border-radius: 5px;
+}
+
+/* Add a border to the context menu */
+QMenu {
+    border: 1px solid #333333;
+    border-radius: 5px;
+}
+
+/* Rounded corners for the file tree (if you want them rounded) */
+QTreeView {
+    border-radius: 5px;  /* Rounded corners for the file tree view */
+}

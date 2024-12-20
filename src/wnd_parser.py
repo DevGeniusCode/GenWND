@@ -1,5 +1,5 @@
 import uuid
-from window import *
+from src.window import *
 
 class WndParser:
     block_tags = {

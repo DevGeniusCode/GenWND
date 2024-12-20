@@ -1,5 +1,5 @@
 import uuid
-from src.window import *
+from src.window.window import *
 
 class WndParser:
     block_tags = {
@@ -42,7 +42,7 @@ class WndParser:
         Validates the format of a key-value pair match.
         :param match: The match object for the key-value pair.
         :param i: The line number where the match was found.
-        :param line: The actual line of text being validated.
+        :param line: The actual line of tag being validated.
         :return: True if match is valid, raises error if invalid.
         """
         if match:
@@ -261,6 +261,30 @@ class WndParser:
         return self.windows
 
 
+def print_window_hierarchy(windows, indent_level=0):
+    """
+    Prints the window hierarchy with names and indentation.
+
+    :param windows: A list of Window objects.
+    :param indent_level: The current indentation level (for recursive calls).
+    """
+    for window in windows:
+        # Extract window name, default to "UNKNOWN" if not found
+        window_name = window.options.get('name', 'Unnamed')
+        if window_name:
+            complete_name = f"{ window.options.WINDOWTYPE}:{window_name}"
+        else:
+            complete_name = f"{ window.options.WINDOWTYPE}"
+
+        # Print the window name with proper indentation
+        indent = "   " * indent_level  # Use spaces for indent
+        print(f"{indent}{complete_name}")
+        if window.children:
+            print(f"{indent} |")
+            # Recursively print children with increased indent
+            print_window_hierarchy(window.children, indent_level + 1)
+
+
 # Example usage
 if __name__ == "__main__":
     parser = WndParser()
@@ -270,103 +294,4 @@ if __name__ == "__main__":
     print(parser.get_metadata())
 
     print("Windows:")
-
-
-    def print_window_hierarchy(windows, indent_level=0):
-        """
-        Prints the window hierarchy with names and indentation.
-
-        :param windows: A list of Window objects.
-        :param indent_level: The current indentation level (for recursive calls).
-        """
-        for window in windows:
-            # Extract window name, default to "UNKNOWN" if not found
-            window_name = window.options.name.split(":")[-1]
-            if window_name:
-                complete_name = f"{ window.options.window_type}:{window_name}"
-            else:
-                complete_name = f"{ window.options.window_type}"
-
-            # Print the window name with proper indentation
-            indent = "   " * indent_level  # Use spaces for indent
-            print(f"{indent}{complete_name}")
-            if window.children:
-                print(f"{indent} |")
-                # Recursively print children with increased indent
-                print_window_hierarchy(window.children, indent_level + 1)
-
     print_window_hierarchy(parser.windows)
-
-
-    # # Example usage:
-    # # Assuming 'parser' is an instance of ConfigParser
-    # # and has already parsed your config string
-    # # Example usage:
-    # # Assuming 'parser' is an instance of ConfigParser
-    # # and has already parsed your config string
-    # config_string = """
-    # WINDOW
-    #   WINDOWTYPE = USER
-    #   NAME = "dummy"
-    #   CHILD
-    #   WINDOW
-    #     WINDOWTYPE = CHEAKBOX
-    #     NAME = "checkbox1"
-    #   END
-    #     CHILD
-    #     WINDOW
-    #       WINDOWTYPE = CHECKBOX2
-    #       NAME = "checkbox2"
-    #     END
-    #   ENDALLCHILDREN
-    # END
-    # """
-    #
-    #
-    # config_string_2 = """
-    # WINDOW
-    #   WINDOWTYPE = USER
-    #   NAME = "dummy"
-    #     ... rest of window options
-    #   CHILD
-    #   WINDOW ; child
-    #     WINDOWTYPE = CHEAKBOX;
-    #     NAME = "checkbox2"
-    #     ... rest of window child options
-    #   END
-    #   ENDALLCHILDREN
-    # END
-    # """
-    #
-    # config_string_3 = """
-    # WINDOW
-    #   NAME = "root"
-    #   Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
-    #   CHILD
-    #     WINDOW
-    #     NAME = "child1"
-    #     Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
-    #     CHILD
-    #     WINDOW
-    #       NAME = "child1child1"
-    #       Options: {'OPTION5': 'value5'}
-    #     END
-    #     ENDALLCHILDREN
-    #
-    #     WINDOW
-    #     NAME = "child2"
-    #     Options: {'OPTION3': 'value3'}
-    #   END
-    #     CHILD
-    #       WINDOW
-    #        NAME = "child3"
-    #       Options: {'OPTION4': 'value4'}
-    #       CHILD
-    #         WINDOW
-    #         NAME = "child3child1"
-    #         Options: {'OPTION5': 'value5'}
-    #         END
-    #     END
-    #   ENDALLCHILDREN
-    # END
-    # """

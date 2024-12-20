@@ -17,32 +17,42 @@ class Config:
                  system_callback, input_callback, tooltip_callback, draw_callback,
                  font, header_template, tooltip_text, tooltip_delay, text, text_color, enabled_draw_data,
                  disabled_draw_data, hilited_draw_data, config_fields):
-        self.window_type = window_type
-        self.screen_rect = screen_rect
-        self.name = name
-        self.status = status
-        self.style = style
-        self.system_callback = system_callback
-        self.input_callback = input_callback
-        self.tooltip_callback = tooltip_callback
-        self.draw_callback = draw_callback
-        self.font = font
-        self.header_template = header_template
-        self.tooltip_text = tooltip_text
-        self.tooltip_delay = tooltip_delay
-        self.text = text
-        self.text_color = text_color
-        self._enabled_draw_data = enabled_draw_data
-        self._disabled_draw_data = disabled_draw_data
-        self._hilited_draw_data = hilited_draw_data
+        self.WINDOWTYPE = window_type
+        self.SCREENRECT = screen_rect
+        self.NAME = name
+        self.STATUS = status
+        self.STYLE = style
+        self.SYSTEMCALLBACK = system_callback
+        self.INPUTCALLBACK = input_callback
+        self.TOOLTIPCALLBACK = tooltip_callback
+        self.DRAWCALLBACK = draw_callback
+        self.FONT = font
+        self.HEADERTEMPLATE = header_template
+        self.TOOLTIPTEXT = tooltip_text
+        self.TOOLTIPDELAY = tooltip_delay
+        self.TEXT = text
+        self.TEXTCOLOR = text_color
+        self._ENABLEDDRAWDATA = enabled_draw_data
+        self._DISABLEDDRAWDATA = disabled_draw_data
+        self._HILITEDDRAWDATA = hilited_draw_data
         self.config_fields = config_fields
 
+    def get(self, key, default=None):
+        """
+        Retrieve a value by key, returning default if the key does not exist.
+        If the key is 'name' and the value contains a colon (":"), return the part after the colon.
+        """
+        value = getattr(self, key, default)
+        if key == 'name' and isinstance(value, str) and ":" in value:
+            return value.split(":")[-1]
+        return value
+
     @property
-    def font(self):
+    def FONT(self):
         return self._font
 
-    @font.setter
-    def font(self, value):
+    @FONT.setter
+    def FONT(self, value):
         # Font name must be one of the valid options
         valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals"]
         if value["name"] not in valid_fonts:
@@ -59,11 +69,11 @@ class Config:
         self._font = value
 
     @property
-    def status(self):
+    def STATUS(self):
         return self._status
 
-    @status.setter
-    def status(self, value):
+    @STATUS.setter
+    def STATUS(self, value):
         valid_status = ["ENABLED", "DISABLED", "IMAGE", "HIDDEN"]
         # Status must be one of the predefined options
         if not any(status in value for status in valid_status):
@@ -71,11 +81,11 @@ class Config:
         self._status = value
 
     @property
-    def screen_rect(self):
+    def SCREENRECT(self):
         return self._screen_rect
 
-    @screen_rect.setter
-    def screen_rect(self, value):
+    @SCREENRECT.setter
+    def SCREENRECT(self, value):
         upper_left, bottom_right = value["upper_left"], value["bottom_right"]
         creation_resolution = value["creation_resolution"]  # New addition to handle the resolution
 
@@ -95,7 +105,7 @@ class Config:
         self._screen_rect = value
 
     @property
-    def text_color(self):
+    def TEXTCOLOR(self):
         return self._text_color
 
     def _is_valid_color(self, color):
@@ -105,8 +115,8 @@ class Config:
             return all(0 <= component <= 255 for component in color)
         return False
 
-    @text_color.setter
-    def text_color(self, value):
+    @TEXTCOLOR.setter
+    def TEXTCOLOR(self, value):
         # Every color must be in RGBA format with values between 0 and 255
         for color_name, color in value.items():
             if not self._is_valid_color(color):
@@ -147,32 +157,32 @@ class Config:
     # Setter for ENABLEDDRAWDATA
     @property
     def enabled_draw_data(self):
-        return self._enabled_draw_data
+        return self._ENABLEDDRAWDATA
 
     @enabled_draw_data.setter
     def enabled_draw_data(self, value):
         self._validate_draw_data(value)
-        self._enabled_draw_data  = value
+        self._ENABLEDDRAWDATA  = value
 
     # Setter for DISABLEDDRAWDATA
     @property
     def disabled_draw_data(self):
-        return self._disabled_draw_data
+        return self._DISABLEDDRAWDATA
 
     @disabled_draw_data.setter
     def disabled_draw_data(self, value):
         self._validate_draw_data(value)
-        self._disabled_draw_data = value
+        self._DISABLEDDRAWDATA = value
 
     # Setter for HILITEDRAWDATA
     @property
     def hilite_draw_data(self):
-        return self._hilited_draw_data
+        return self._HILITEDDRAWDATA
 
     @hilite_draw_data.setter
     def hilite_draw_data(self, value):
         self._validate_draw_data(value)
-        self._hilited_draw_data = value
+        self._HILITEDDRAWDATA = value
 
 
 def parse_screenrect(lines_iter):

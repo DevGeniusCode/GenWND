@@ -1,8 +1,9 @@
 import os
 from PyQt6.QtWidgets import QTreeView, QMenu, QMessageBox, QInputDialog
 from PyQt6.QtCore import QDir, QModelIndex
-from PyQt6.QtGui import QFileSystemModel
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFileSystemModel, QDrag
+from PyQt6.QtCore import Qt, QMimeData, QByteArray
+import shutil
 
 class FileTree(QTreeView):
     def __init__(self, parent=None):
@@ -43,6 +44,16 @@ class FileTree(QTreeView):
         for column in range(1, self.model.columnCount()):
             self.hideColumn(column)
 
+        # Enable drag and drop
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.doubleClicked.connect(self.handle_double_click) # Handle double click event
+
+        # Create a validator for file names to block special charcters
+        #self.name_validator = QRegularExpressionValidator(QRegularExpression("[a-zA-Z0-9_.-]+"))
+
+
     def set_root_path(self, path):
         """Set the root path for the tree view, filter out '.' and '..' directories"""
         self.model.setRootPath(path)
@@ -50,26 +61,6 @@ class FileTree(QTreeView):
 
         # Update the model filter to explicitly hide '.' and '..' directories
         self.model.setFilter(QDir.Filter.AllDirs | QDir.Filter.Files | QDir.Filter.NoDotAndDotDot)
-
-    def filterDirectory(self, index: QModelIndex):
-        """Override this method to filter out directories like .git, .idea etc."""
-        file_path = self.model.filePath(index)
-        return not file_path.startswith('.')
-
-    def indexFromItem(self, item):
-        """Override this method to apply additional filtering for hidden folders"""
-        index = super().indexFromItem(item)
-        if self.filterDirectory(index):
-            return index
-        return QModelIndex()  # Return invalid index for hidden directories
-
-    def isExpandable(self, index: QModelIndex):
-        """Override to avoid expanding empty directories"""
-        file_path = self.model.filePath(index)
-        if os.path.isdir(file_path) and not os.listdir(file_path):  # Check if directory is empty
-            return False
-        return super().isExpandable(index)
-
 
     def show_context_menu(self, pos):
         """Show context menu for file operations (e.g., add, delete)"""
@@ -201,3 +192,98 @@ class FileTree(QTreeView):
                 self.model.layoutChanged.emit()
             except Exception as e:
                 print(f"Error deleting {file_path}: {e}")
+
+    def startDrag(self, supportedActions: Qt.DropAction):
+       """Start drag operation"""
+       index = self.currentIndex()
+       if not index.isValid():
+           return
+
+       file_path = self.model.filePath(index)
+       if os.path.isdir(file_path):
+            return # do not allow dragging folder
+
+       mime_data = QMimeData()
+       mime_data.setText(file_path)
+
+       drag = QDrag(self)
+       drag.setMimeData(mime_data)
+       drag.exec(supportedActions)
+
+    def dragEnterEvent(self, event):
+        """Handles drag enter event"""
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+       """Handles drag move event"""
+       event.acceptProposedAction()
+
+
+    def dropEvent(self, event):
+        """Handles drop event"""
+        if not event.mimeData().hasText():
+            return
+
+        source_file_path = event.mimeData().text()
+        target_index = self.indexAt(event.position().toPoint())
+
+        if not target_index.isValid(): # drop on blank space
+            target_dir = self.model.rootPath()
+        else:
+           target_file_path = self.model.filePath(target_index)
+           if os.path.isfile(target_file_path): # if dropped on a file
+               target_dir = os.path.dirname(target_file_path)
+           else:
+               target_dir = target_file_path
+
+
+
+        # Prevent dropping a folder on itself
+        if os.path.isdir(source_file_path) :
+            QMessageBox.warning(self, "Error", "Cannot move a folder.")
+            return
+
+        if os.path.abspath(source_file_path) == os.path.abspath(target_dir):
+             return
+
+        if os.path.abspath(source_file_path).startswith(os.path.abspath(target_dir)): #prevent folder to be droped into its self
+           return
+
+
+        try:
+            # Check if a file with the same name already exists in the target directory
+            target_file_name = os.path.basename(source_file_path)
+            new_file_path = os.path.join(target_dir, target_file_name)
+            if os.path.exists(new_file_path):
+                dialog = QInputDialog(self)
+                dialog.setWindowTitle("Name Conflict")
+                dialog.setLabelText("Enter new file name:")
+                line_edit = dialog.findChild(QLineEdit)
+                while True:
+                     ok = dialog.exec()
+                     if not ok:
+                        return # user canceled
+                     new_file_name = dialog.textValue()
+                     if not new_file_name:
+                         line_edit.setStyleSheet("border: 1px solid red;")
+                         line_edit.setPlaceholderText("File name cannot be empty!")
+                         continue  # retry
+                     line_edit.setStyleSheet("")
+                     line_edit.setPlaceholderText("")
+                     new_file_path = os.path.join(target_dir, new_file_name)
+                     if os.path.exists(new_file_path):
+                         line_edit.setStyleSheet("border: 1px solid red;")
+                         line_edit.setPlaceholderText("File with this name already exists!")
+                         continue
+                     break
+            shutil.move(source_file_path, new_file_path)
+            self.model.layoutChanged.emit()  # Refresh view
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to move file: {e}")
+
+    def handle_double_click(self,index):
+       """Block the option to edit the file name from the treeview"""
+       if index.isValid() and not self.model.isDir(index):
+            return
+       self.edit(index)

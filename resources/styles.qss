@@ -1,0 +1,32 @@
+QMainWindow {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+QTreeView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+}
+
+QTableView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #333333;
+}
+
+QMenuBar {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+QMenu {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+QHeaderView::section {
+    background-color: #333333;
+    color: #ffffff;
+    border: none;
+}

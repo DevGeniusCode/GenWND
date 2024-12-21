@@ -1,11 +1,10 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
-    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout
+    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 import os
 import traceback
-
 
 from object_tree import ObjectTree
 from file_tree import FileTree
@@ -51,11 +50,14 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.toggle_file_tree_button)
 
         # File Tree
-        self.file_tree = FileTree(self)
+        self.file_tree = FileTree(self, main_window=self)  # Pass the reference of MainWindow here
         self.file_tree.setMinimumWidth(250)
+
         # Label for displaying root path at the bottom of the file tree
         self.root_path_label = QLabel()
         self.root_path_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # Connect the file selected signal to the update function
+        self.file_tree.file_selected_signal.connect(self.select_file)
 
         # Layout for file tree and path label
         file_tree_layout = QVBoxLayout()
@@ -68,6 +70,9 @@ class MainWindow(QMainWindow):
         self.object_tree = ObjectTree(self)
         self.object_tree.setHeaderHidden(True)
         self.object_tree.setMinimumWidth(300)
+
+        # Connect the object selected signal to the update function
+        self.object_tree.object_selected_signal.connect(self.select_object)
 
         # Property Editor (for window details)
         self.property_editor = QTableView()
@@ -100,15 +105,68 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
-        self.update_root_path_label()
+        # Add status bar at the bottom
+        self.status_bar = QStatusBar(self)
+        self.setStatusBar(self.status_bar)
+        self.selected_file = None  # Set initial value to None
+        self.selected_object = None  # Set initial value to None
+
+        self.update_status_bar()
 
         # Load styles
         self.load_styles()
 
-    def update_root_path_label(self):
-        """Updates the root path label at the bottom of the file tree"""
+        # Enable drag and drop
+        self.setAcceptDrops(True)
+    def select_object(self, obj_name):
+        """Handles selection of an object from the object tree"""
+        self.selected_object = obj_name
+        self.update_status_bar()  # Update status bar with selected object
+
+        # Log the selected object
+        self.log_manager.log(f"Object selected: {obj_name}", level="INFO")
+
+    def select_file(self, file_path):
+        """Handles selection of a file from the file tree"""
+        self.selected_file = file_path
+        self.selected_object = None  # Reset the selected object when a new file is selected
+        self.update_status_bar()  # Update status bar with selected file
+
+        # Log the selected file
+        self.log_manager.log(f"File selected: {file_path}", level="INFO")
+
+    def select_folder(self, folder_path):
+        """Handles folder selection and resets file and object selections."""
+        self.selected_file = None  # No file selected
+        self.selected_object = None  # No object selected
+
+        self.update_status_bar()  # Update the status bar to reflect that only folder is selected
+        self.log_manager.log(f"Folder selected: {folder_path}", level="INFO")
+
+    def update_status_bar(self):
+        """Update the status bar with relevant information."""
         root_path = self.file_tree.model.rootPath()
-        self.root_path_label.setText(f"Root: {os.path.basename(root_path) if root_path else 'No Folder Selected'}")
+        file_name = "No file selected"
+        object_name = "No object selected"
+
+        if root_path:
+            root_path_info = f"Root: {os.path.basename(root_path)}"
+        else:
+            root_path_info = "Root: Not available"
+
+        # Update the file name and object name if they are selected
+        if hasattr(self, 'selected_file') and self.selected_file:
+            file_name = f"File: {os.path.basename(self.selected_file)}"
+        elif not self.selected_file:
+            file_name = "Folder selected"
+
+        if hasattr(self, 'selected_object') and self.selected_object:
+            object_name = f"Object: {self.selected_object}"
+
+        # Combine all information
+        status_text = f"{root_path_info} | {file_name} | {object_name}"
+
+        self.status_bar.showMessage(status_text)
 
     def add_file_menu(self):
         """Handles the 'Add File' action from the menu"""
@@ -147,11 +205,17 @@ class MainWindow(QMainWindow):
         file, _ = QFileDialog.getOpenFileName(self, "Open File", "", "WND Files (*.wnd);;All Files (*)")
         if file:
             self.log_manager.log(f"Logged info: File selected: {file}", level="INFO")
+            self.current_file = file
+            self.selected_object = None
+            self.update_status_bar()  # Update status bar
             self.load_wnd_file(file)
 
     def load_wnd_file(self, file_path):
         """Load and parse the WND file, then display the object tree"""
         try:
+            # Reset the selected object when a new file is loaded
+            self.selected_object = None  # Clear the object selection
+
             parser = WndParser()
             parser.parse_file(file_path)  # Parse the WND file
             windows = parser.get_windows()  # Get the list of windows (hierarchy)
@@ -170,7 +234,9 @@ class MainWindow(QMainWindow):
         if folder:
             self.log_manager.log(f"Logged info: Folder selected: {folder}", level="INFO")
             self.file_tree.set_root_path(folder)
-            self.update_root_path_label()
+            self.selected_file = None  # Reset the selected file when a folder is selected
+            self.selected_object = None  # Reset the selected object as well
+            self.update_status_bar()  # Update status bar
 
     def handle_exception(self, exc_type, exc_value, exc_tb):
         """Handle uncaught exceptions globally"""
@@ -181,6 +247,22 @@ class MainWindow(QMainWindow):
         self.log_manager.log_exception(exc_value)
         self.log_manager.log_exception(stack_trace)
 
+    def dragEnterEvent(self, event):
+        """Handles the drag enter event. Checks if the dragged content is a valid file."""
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Handles the drop event and processes the dropped files."""
+        files = [u.toLocalFile() for u in event.mimeData().urls()]
+        for f in files:
+            if f.endswith(".wnd"):
+                self.log_manager.log(f"File dropped: {f}", level="INFO")
+                self.load_wnd_file(f)
+            else:
+                self.log_manager.log(f"Invalid file type dropped: {f}", level="WARNING")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

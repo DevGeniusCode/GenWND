@@ -1,21 +1,21 @@
 # WNDEdit - Tool for Analyzing and Editing WND Files
 
-**WNDEdit** is a software tool designed to analyze and edit **WND** files, which contain UI settings for the game **Generals**. The tool allows for loading, analyzing, and displaying window (Windows) objects from a WND file in a graphical and organized manner. It was built using **PyQt6** and provides an intuitive user interface for managing and understanding WND files.
+**WNDEdit** is a software tool designed to analyze and edit **WND** files, which contain UI settings for the game **Command & Conquer: Generals – Zero Hour**. The tool allows for loading, analyzing, and displaying window (Windows) objects from a WND file in a graphical and organized manner. It was built using **PyQt6** and provides an intuitive user interface for managing and understanding WND files.
 
 The project is inspired by an existing proprietary software with the same name, developed by deezer. The goal of WNDEdit is to enhance the functionality and features of the original tool, while maintaining the original purpose and design.
 
 
-## Folder Structure
+## Project Structure
 
 The project is structured as follows:
 
 ```
 WNDEdit/
+├── readme.md
 ├── logs/
 │   ├── log_current.log
 │   └── log_current_old.log
 ├── resources/
-│   ├── config.py
 │   ├── example.wnd
 │   └── styles.qss
 ├── src/

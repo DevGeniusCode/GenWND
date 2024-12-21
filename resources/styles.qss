@@ -65,3 +65,33 @@ QMenu {
 QTreeView {
     border-radius: 5px;  /* Rounded corners for the file tree view */
 }
+
+QTreeView::branch:has-siblings:!adjoins-item {
+        border-image: #d4d4d4;
+
+    image: url(resources/icons/vline.png);
+}
+
+QTreeView::branch:has-siblings:adjoins-item {
+        border-image: #d4d4d4;
+
+    image: url(resources/icons/branch-more.png);
+}
+
+QTreeView::branch:!has-children:!has-siblings:adjoins-item {
+        border-image: #d4d4d4;
+
+    image: url(resources/icons/branch-end.png);
+}
+
+QTreeView::branch:has-children:!has-siblings:closed,
+QTreeView::branch:closed:has-children:has-siblings {
+        border-image: #d4d4d4;
+        image: url(resources/icons/branch-closed.png);
+}
+
+QTreeView::branch:open:has-children:!has-siblings,
+QTreeView::branch:open:has-children:has-siblings  {
+        border-image: #d4d4d4;
+        image: url(resources/icons/branch-open.png);
+}

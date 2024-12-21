@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QTreeView
-from PyQt6.QtGui import QStandardItemModel, QStandardItem
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import pyqtSignal, QObject
 
@@ -49,3 +49,27 @@ class ObjectTree(QTreeView):
 
             # Emit the signal to notify MainWindow of the selected object
             self.object_selected_signal.emit(selected_object_name)
+
+    def display_error(self, error_message):
+        """
+        Display an error message in the object tree.
+        :param error_message: The error message to display.
+        """
+        # Clear the model to ensure no old data is left
+        self.model.clear()
+
+        # Create an error item to show in the tree
+        error_item = QStandardItem("Error")
+        error_item.setForeground(QColor("red"))
+        error_item.setEditable(False)
+
+        # Add the error message as a child item
+        error_message_item = QStandardItem(error_message)
+        error_message_item.setEditable(False)
+        error_item.appendRow(error_message_item)
+
+        # Add the error item as the root item of the model
+        self.model.appendRow(error_item)
+
+        # Optionally expand the error item so it's visible
+        self.expandAll()

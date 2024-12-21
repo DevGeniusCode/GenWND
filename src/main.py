@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
-    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar
+    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 import os
@@ -32,15 +32,20 @@ class MainWindow(QMainWindow):
         open_file_action = QAction("Open File", self)
         open_folder_action = QAction("Open Folder", self)
         save_action = QAction("Save", self)
+        save_as_action = QAction("Save As", self)
         add_file_action = QAction("Add File", self)
         add_folder_action = QAction("Add Folder", self)
         file_menu.addActions([open_file_action, open_folder_action, save_action, add_file_action, add_folder_action])
+        file_menu.addAction(save_action)
+        file_menu.addAction(save_as_action)
 
         # Connect menu actions
         add_file_action.triggered.connect(self.add_file_menu)
         add_folder_action.triggered.connect(self.add_folder_menu)
         open_file_action.triggered.connect(self.open_file)
         open_folder_action.triggered.connect(self.open_folder)
+        save_action.triggered.connect(self.save_file)
+        save_as_action.triggered.connect(self.save_as_file)
 
         # File Tree Toggle Button
         toolbar = QToolBar()
@@ -108,8 +113,9 @@ class MainWindow(QMainWindow):
         # Add status bar at the bottom
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.selected_file = None  # Set initial value to None
-        self.selected_object = None  # Set initial value to None
+        self.selected_file = None
+        self.selected_object = None
+        self.parser = None
 
         self.update_status_bar()
 
@@ -142,6 +148,43 @@ class MainWindow(QMainWindow):
 
         self.update_status_bar()  # Update the status bar to reflect that only folder is selected
         self.log_manager.log(f"Folder selected: {folder_path}", level="INFO")
+
+    def save_file(self):
+        """Saves the current WND file to the selected file path."""
+        if self.selected_file and self.parser:
+            try:
+                # Save the current WND data to the selected file
+                with open(self.selected_file, 'w') as file:
+                    file.write(str(self.parser))  # Using __repr__ method of WndParser to get the file content
+                self.log_manager.log(f"File saved: {self.selected_file}", level="INFO")
+            except Exception as e:
+                self.log_manager.log(f"Error saving file: {e}", level="ERROR")
+                self.show_error_message("Save Error", f"An error occurred while saving the file: {e}")
+        else:
+            self.log_manager.log("No file selected to save", level="ERROR")
+            self.show_error_message("Save Error", "No file selected to save.")
+
+    def save_as_file(self):
+        """Prompts the user to choose a location and save the WND file under a new name."""
+        if self.parser:
+            file, _ = QFileDialog.getSaveFileName(self, "Save As", "", "WND Files (*.wnd);;All Files (*)")
+            if file:
+                try:
+                    # Save the WND data to the chosen file path
+                    with open(file, 'w') as f:
+                        f.write(str(self.parser))  # Using __repr__ method of WndParser to get the file content
+                    self.selected_file = file  # Update the selected file path
+                    self.log_manager.log(f"File saved as: {file}", level="INFO")
+                except Exception as e:
+                    self.log_manager.log(f"Error saving file as: {e}", level="ERROR")
+                    self.show_error_message("Save As Error", f"An error occurred while saving the file as: {e}")
+        else:
+            self.log_manager.log("No data to save", level="ERROR")
+            self.show_error_message("Save As Error", "No data to save.")
+
+    def show_error_message(self, title, message):
+        """Displays an error message dialog to the user."""
+        QMessageBox.critical(self, title, message)
 
     def update_status_bar(self):
         """Update the status bar with relevant information."""
@@ -211,22 +254,26 @@ class MainWindow(QMainWindow):
             self.load_wnd_file(file)
 
     def load_wnd_file(self, file_path):
-        """Load and parse the WND file, then display the object tree"""
+        """Loads and parses the WND file, and displays the object tree."""
         try:
-            # Reset the selected object when a new file is loaded
-            self.selected_object = None  # Clear the object selection
+            self.selected_file = file_path  # Store the selected file path
+            self.selected_object = None  # Reset object selection
+            self.parser = WndParser()
+            self.parser.parse_file(file_path)  # Parse the WND file
+            windows = self.parser.get_windows()  # Retrieve the list of windows (objects)
 
-            parser = WndParser()
-            parser.parse_file(file_path)  # Parse the WND file
-            windows = parser.get_windows()  # Get the list of windows (hierarchy)
-
-            # Load the objects into the object tree view
-            self.log_manager.log(f"Load objects file {file_path}", level="INFO")
+            # Load the windows into the object tree
             self.object_tree.load_objects(windows)
 
+            self.log_manager.log(f"Loaded objects from file {file_path}", level="INFO")
+
         except ValueError as e:
-            self.log_manager.log(f"Aborting file {file_path} load due to error: {e}", level="ERROR")
-            self.object_tree.model.clear()
+            error_message = f"Error loading file: {e}"
+            self.log_manager.log(error_message, level="ERROR")
+            self.object_tree.display_error(error_message)
+
+
+
 
     def open_folder(self):
         """Handle opening a folder"""

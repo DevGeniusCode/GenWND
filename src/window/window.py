@@ -2,11 +2,14 @@ import re
 from src.error_handler import ErrorHandler
 from src.window.line_iterator import LineIterator
 
+
 class InvalidValuesError(Exception):
     """Exception raised when the values are invalid."""
+
     def __init__(self, message="Invalid values provided"):
         self.message = message
         super().__init__(self.message)
+
 
 class Window:
     def __init__(self, window_key, config=None, children=None):
@@ -19,6 +22,7 @@ class Window:
         self.window_key = window_key
         self.options = config or {}
         self.children = children if children is not None else []
+
 
 class Config:
     def __init__(self, window_type, screen_rect, name, status, style,
@@ -42,7 +46,7 @@ class Config:
         self.TEXTCOLOR = text_color
         self._ENABLEDDRAWDATA = enabled_draw_data
         self._DISABLEDDRAWDATA = disabled_draw_data
-        self._HILITEDDRAWDATA = hilited_draw_data
+        self._HILITEDRAWDATA = hilited_draw_data
         self.config_fields = config_fields
 
     def get(self, key, default=None):
@@ -99,11 +103,13 @@ class Config:
 
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
-            raise InvalidValuesError(f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
+            raise InvalidValuesError(
+                f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
         #
         # # # Check that bottom_right coordinates are within the bounds of creation_resolution
         if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-            raise InvalidValuesError(f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
+            raise InvalidValuesError(
+                f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
@@ -161,7 +167,6 @@ class Config:
 
     # Use internal variables for drawing data
 
-
     # Setter for ENABLEDDRAWDATA
     @property
     def enabled_draw_data(self):
@@ -170,7 +175,7 @@ class Config:
     @enabled_draw_data.setter
     def enabled_draw_data(self, value):
         self._validate_draw_data(value)
-        self._ENABLEDDRAWDATA  = value
+        self._ENABLEDDRAWDATA = value
 
     # Setter for DISABLEDDRAWDATA
     @property
@@ -185,12 +190,190 @@ class Config:
     # Setter for HILITEDRAWDATA
     @property
     def hilite_draw_data(self):
-        return self._HILITEDDRAWDATA
+        return self._HILITEDRAWDATA
 
     @hilite_draw_data.setter
     def hilite_draw_data(self, value):
         self._validate_draw_data(value)
-        self._HILITEDDRAWDATA = value
+        self._HILITEDRAWDATA = value
+
+    def _format_screenrect(self):
+        """
+        Formats the screen rectangle (upper left, bottom right, and creation resolution)
+        into a human-readable string.
+
+        Returns:
+            str: The formatted screen rectangle string.
+        """
+        screen_rect = self.SCREENRECT
+        return (
+            f"SCREENRECT = UPPERLEFT: {screen_rect['upper_left'][0]} {screen_rect['upper_left'][1]},\n"
+            f"             BOTTOMRIGHT: {screen_rect['bottom_right'][0]} {screen_rect['bottom_right'][1]},\n"
+            f"             CREATIONRESOLUTION: {screen_rect['creation_resolution'][0]} {screen_rect['creation_resolution'][1]};"
+        )
+
+    def _format_font(self):
+        """
+        Formats the font data (name, size, bold status) into a human-readable string.
+
+        Returns:
+            str: The formatted font string.
+        """
+        font = self.FONT
+        return f'FONT = NAME: "{font["name"]}", SIZE: {font["size"]}, BOLD: {font["bold"]};'
+
+    def _format_text_color(self):
+        """
+        Formats the text color settings into a human-readable string, splitting across multiple lines
+        with indentation.
+
+        Returns:
+            str: The formatted text color string.
+        """
+        text_color_str = "TEXTCOLOR ="
+        color_strings = []
+        indent = " " * len(text_color_str) + " "  # Create an indent with the width of "TEXTCOLOR = "
+
+        # Iterate through the text color dictionary and create formatted color strings
+        for key, color in self.TEXTCOLOR.items():
+            r, g, b, a = color
+            color_strings.append(f"{key}: {r} {g} {b} {a}")
+
+        formatted_lines = [text_color_str]
+        current_line = text_color_str  # Start with the initial "TEXTCOLOR =" line
+        for i, color_str in enumerate(color_strings):
+            if i % 2 == 0 and i != 0:  # If this is the first color on a new line
+                formatted_lines.append(indent + color_str + ",")  # Add a new line with the indent
+            else:  # If it's on the same line, just add it to the current_line string
+                if i == 0:
+                    formatted_lines[0] += " " + color_str + ","
+                else:
+                    formatted_lines[-1] += " " + color_str + ","
+
+        # Ensure the last line ends with a semicolon
+        formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
+
+        return '\n'.join(formatted_lines)
+
+    def _format_draw_data(self, draw_data, tag):
+        """
+        Formats the draw data into a human-readable string. Each entry in the draw data is formatted as
+        'IMAGE: <image>, COLOR: <color>, BORDERCOLOR: <border_color>'.
+
+        Args:
+            draw_data (list): A list of dictionaries containing the draw data (image, color, and border color).
+            tag (str): The name of the tag for the draw data (e.g., ENABLEDDRAWDATA).
+
+        Returns:
+            str: The formatted draw data string.
+        """
+        # Calculate the indentation width based on the tag
+        width = len(tag + ' = ')
+        indent = " " * width
+
+        # If there is no draw data, return an empty string
+        if not draw_data:
+            return ""
+
+        formatted_lines = []  # Start without the tag
+        # Iterate through each entry in the draw data
+        for i, entry in enumerate(draw_data):
+            image = entry["image"]
+            color = " ".join(map(str, entry["color"]))
+            border_color = " ".join(map(str, entry["border_color"]))
+
+            # Format the draw data entry as a string
+            formatted_line = f"IMAGE: {image}, COLOR: {color}, BORDERCOLOR: {border_color}"
+
+            # If it's the last item, end with ';'
+            if i == len(draw_data) - 1:
+                formatted_lines.append(indent + formatted_line + ";")
+            elif i == 0:
+                formatted_lines.append(formatted_line + ",")
+            else:
+                formatted_lines.append(indent + formatted_line + ",")
+
+        # Join the formatted lines into a final string
+        return "\n".join(formatted_lines)
+
+    def _format_config_fields(self):
+        """
+        Formats the configuration fields into a human-readable string.
+
+        Returns:
+            str: The formatted configuration fields string.
+        """
+        output = []
+        if self.config_fields:
+            for key, value in self.config_fields.items():
+                if isinstance(value, dict):  # Format 1
+                    formatted_lines = [f"{key} ="]  # Start with the key line
+                    indent = " " * (len(key + ' = '))  # Account for the indentation after '='
+
+                    first = True
+                    for k, v in value.items():
+                        if k == "COLUMNSWIDTH":
+                            for width in v:
+                                if first:
+                                    formatted_lines[0] += f" {k}: {width},"
+                                    first = False
+                                else:
+                                    formatted_lines.append(f"{indent}{k}: {width},")
+                        else:
+                            if first:
+                                formatted_lines[0] += f" {k}: {v},"  # Add to the key line
+                                first = False
+                            else:
+                                formatted_lines.append(f"{indent}{k}: {v},")  # Subsequent values indented
+
+                    # Remove the last comma and add semicolon
+                    formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
+
+                    output.extend(formatted_lines)
+                elif isinstance(value, list):  # Format 2
+                    draw_data_str = self._format_draw_data(value, key)
+                    if draw_data_str:
+                        output.append(f"{key} = " + draw_data_str)
+        return "\n".join(output)
+
+    def __repr__(self):
+        """
+        Formats the entire object into a string representation.
+
+        Returns:
+            str: The formatted string representation of the object.
+        """
+        output = []
+
+        output.append(f"WINDOWTYPE = {self.WINDOWTYPE};")
+        output.append(self._format_screenrect())
+        output.append(f'NAME = "{self.NAME}";')
+        output.append(f"STATUS = {'+'.join(self.STATUS)};")
+        output.append(f"STYLE = {'+'.join(self.STYLE)};")
+        output.append(f'SYSTEMCALLBACK = "{self.SYSTEMCALLBACK}";')
+        output.append(f'INPUTCALLBACK = "{self.INPUTCALLBACK}";')
+        output.append(f'TOOLTIPCALLBACK = "{self.TOOLTIPCALLBACK}";')
+        output.append(f'DRAWCALLBACK = "{self.DRAWCALLBACK}";')
+        output.append(self._format_font())
+        output.append(f'HEADERTEMPLATE = "{self.HEADERTEMPLATE}";')
+
+        if self.TOOLTIPTEXT:
+            output.append(f'TOOLTIPTEXT = "{self.TOOLTIPTEXT}";')
+        if self.TOOLTIPDELAY:
+            output.append(f'TOOLTIPDELAY = {self.TOOLTIPDELAY};')
+        if self.TEXT:
+            output.append(f'TEXT = "{self.TEXT}";')
+        output.append(self._format_text_color())
+
+        # Add formatted draw data
+        output.append(f"ENABLEDDRAWDATA = {self._format_draw_data(self.enabled_draw_data, 'ENABLEDDRAWDATA')}")
+        output.append(f"DISABLEDDRAWDATA = {self._format_draw_data(self.disabled_draw_data, 'DISABLEDDRAWDATA')}")
+        output.append(f"HILITEDRAWDATA = {self._format_draw_data(self.hilite_draw_data, 'HILITEDRAWDATA')}")
+
+        # Add configuration fields if they exist
+        output.append(self._format_config_fields())
+
+        return '\n'.join(output)
 
 
 def parse_screenrect(lines_iter):
@@ -305,18 +488,37 @@ def parse_config_fields(lines_iter):
                         config_fields[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
                     elif tag.endswith("DATA"):
                         subfields = {}
-                        sub_lines_iter = LineIterator(value.split(',')) # create iterator for subfields
+                        sub_lines_iter = LineIterator(value.split(','))  # create iterator for subfields
                         while True:
-                             try:
-                                  sub_line = next(sub_lines_iter).strip()
-                                  sub_match = re.match(r'(\w+):\s*([^,;]+)(?:,|$)', sub_line)
-                                  if sub_match:
-                                       sub_name, sub_value = sub_match.groups()
-                                       subfields[sub_name] = int(sub_value.strip())
-                                  elif sub_line: # Skip empty subfields
-                                        raise ValueError(f"Invalid subfield format: '{sub_line}'")
-                             except StopIteration:
-                                  break
+                            try:
+                                sub_line = next(sub_lines_iter).strip()
+                                sub_match = re.match(r'(\w+):\s*([^,;]+)(?:,|$)', sub_line)
+                                if sub_match:
+                                    sub_name, sub_value = sub_match.groups()
+                                    sub_value = int(sub_value.strip())
+
+                                    if sub_name == "COLUMNS":
+                                        # Save the COLUMNS value to check COLUMNSWIDTH later
+                                        # columns_value = sub_value
+                                        subfields[sub_name] = sub_value
+                                    elif sub_name == "COLUMNSWIDTH":
+                                        # If COLUMNSWIDTH appears, store them in a list
+                                        if "COLUMNSWIDTH" not in subfields:
+                                            subfields["COLUMNSWIDTH"] = []
+                                        subfields["COLUMNSWIDTH"].append(sub_value)
+                                    else:
+                                        # For other subfields, just store the value
+                                        subfields[sub_name] = sub_value
+                                elif sub_line:  # Skip empty subfields
+                                    raise ValueError(f"Invalid subfield format: '{sub_line}'")
+
+                            except StopIteration:
+                                # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
+                                if "COLUMNS" in subfields and "COLUMNSWIDTH" in subfields:
+                                    if len(subfields["COLUMNSWIDTH"]) != subfields["COLUMNS"]:
+                                        raise ValueError(
+                                            f"Number of COLUMNSWIDTH ({len(subfields['COLUMNSWIDTH'])}) does not match COLUMNS ({subfields['COLUMNS']})")
+                                break
                         config_fields[tag] = subfields
                     else:
                         raise ValueError("Invalid data")
@@ -327,6 +529,7 @@ def parse_config_fields(lines_iter):
         except StopIteration:
             break
     return config_fields
+
 
 # Function to parse the window configuration and return a Config object
 def parse_window_config(lines_iter):
@@ -407,10 +610,14 @@ def parse_window_config(lines_iter):
                 case "SYSTEMCALLBACK" | "INPUTCALLBACK" | "TOOLTIPCALLBACK" | "DRAWCALLBACK":
                     callback_value = line.split("=")[1].strip().strip('"')
                     match tag:
-                        case "SYSTEMCALLBACK": system_callback = callback_value
-                        case "INPUTCALLBACK": input_callback = callback_value
-                        case "TOOLTIPCALLBACK": tooltip_callback = callback_value
-                        case "DRAWCALLBACK": draw_callback = callback_value
+                        case "SYSTEMCALLBACK":
+                            system_callback = callback_value
+                        case "INPUTCALLBACK":
+                            input_callback = callback_value
+                        case "TOOLTIPCALLBACK":
+                            tooltip_callback = callback_value
+                        case "DRAWCALLBACK":
+                            draw_callback = callback_value
 
                 case "FONT":
                     match = re.match(r'FONT = NAME: "(.+)", SIZE: (\d+), BOLD: (\d+)?', line)
@@ -425,13 +632,13 @@ def parse_window_config(lines_iter):
                     header_template = line.split("=")[1].strip().strip('"')
 
                 case "TOOLTIPTEXT":
-                    tooltip_text =  line.split("=")[1].strip()
+                    tooltip_text = line.split("=")[1].strip().strip('"')
 
                 case "TOOLTIPDELAY":
                     tooltip_delay = int(line.split("=")[1].strip())
 
                 case "TEXT":
-                    text = line.split("=")[1].strip()
+                    text = line.split("=")[1].strip().strip('"')
 
                 case "TEXTCOLOR":
                     text_color = parse_text_colors(lines_iter)
@@ -490,4 +697,3 @@ def parse_window_config(lines_iter):
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)
     except InvalidValuesError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=2)
-

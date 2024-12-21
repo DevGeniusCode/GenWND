@@ -16,6 +16,52 @@ class WndParser:
         self.file_metadata = {}
         self.windows = []
 
+    def __repr__(self):
+        """
+        Returns a string representation of the WndParser instance in the format of the original WND file.
+        """
+        lines = []
+
+        # Metadata section
+        if 'FILE_VERSION' in self.file_metadata:
+            lines.append(f"FILE_VERSION = {self.file_metadata['FILE_VERSION']};")
+
+        # Layout block (if exists)
+        if "LAYOUTBLOCK" in self.file_metadata:
+            lines.append("STARTLAYOUTBLOCK")
+            layout_block = self.file_metadata["LAYOUTBLOCK"]
+            for key, value in layout_block.items():
+                lines.append(f"  {key} = {value};")
+            lines.append("ENDLAYOUTBLOCK")
+
+        # Windows section
+        for window in self.windows:
+            self._repr_window(window, lines, indent_level=0)
+
+        return "\n".join(lines)
+
+    def _repr_window(self, window, lines, indent_level):
+        """
+        Recursively generates the string representation for a window and its children.
+        """
+        indent = "  " * indent_level
+        lines.append(f"{indent}WINDOW")
+
+        # Add window options (e.g., name, type, etc.)
+        options_repr = repr(window.options)
+        for line in options_repr.splitlines():
+            lines.append(f"{indent}  {line}")  # Add 2 more spaces for indentation inside the window
+
+        # Process children windows
+        if window.children:
+            for child in window.children:
+                lines.append(f"{indent}  CHILD")
+                self._repr_window(child, lines, indent_level + 1)
+            lines.append(f"{indent}  ENDALLCHILDREN")
+
+        # Close the current window
+        lines.append(f"{indent}END")
+
     def parse_file(self, file_path):
         """
         Parse a WND file and extract metadata and windows hierarchy.
@@ -279,10 +325,10 @@ def print_window_hierarchy(windows, indent_level=0):
 # Example usage
 if __name__ == "__main__":
     parser = WndParser()
-    parser.parse_file(r"resources/example.wnd")
-
-    print("Metadata:")
-    print(parser.get_metadata())
-
-    print("Windows:")
-    print_window_hierarchy(parser.windows)
+    parser.parse_file(r"C:\Users\User\Documents\OptionsMenu.wnd")
+    print(parser)
+    # print("Metadata:")
+    # print(parser.get_metadata())
+    #
+    # print("Windows:")
+    # print_window_hierarchy(parser.windows)

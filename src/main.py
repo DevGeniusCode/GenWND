@@ -128,7 +128,7 @@ class MainWindow(QMainWindow):
             with open("resources/styles.qss", "r") as style_file:
                 self.setStyleSheet(style_file.read())
         except FileNotFoundError:
-            print("Error: styles.qss not found in resources directory")
+            self.log_manager.log(f"styles.qss not found in resources directory", level="WARNING")
 
     def toggle_file_tree_visibility(self):
         """Toggles the visibility of the file tree panel"""

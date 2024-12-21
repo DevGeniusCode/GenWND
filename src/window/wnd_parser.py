@@ -50,7 +50,7 @@ class WndParser:
 
             # Ensure there are spaces around '='
             if '=' not in line or ' ' not in line.split('=')[0] or ' ' not in line.split('=')[1]:
-                ErrorHandler.raise_error(file_path, i, line, "Missing spaces around '='")
+                ErrorHandler.raise_error(file_path, i, line, "Missing spaces around '='", error_level=2)
         else:
             if line in self.block_tags or line in self.block_tags.values():
                 return False
@@ -59,7 +59,7 @@ class WndParser:
             if not line.endswith(';'):
                 ErrorHandler.raise_error(file_path, i, line, "Missing ';' at the end of the line")
             elif line and not any(line.startswith(tag) for tag in self.block_tags):
-                ErrorHandler.raise_error(file_path, i, line, "Invalid format")
+                ErrorHandler.raise_error(file_path, i, line, "Invalid format", error_level=2)
 
         return True
 
@@ -108,13 +108,15 @@ class WndParser:
                     if self._valid_match(match, lines_iter.line_number, layout_line, file_path):
                         key, value = match.groups()
                         if key in layout_block:
-                            ErrorHandler.raise_error(file_path, lines_iter.line_number, layout_line, f"Duplicate key '{key}' in layout block")
+                            ErrorHandler.raise_error(file_path, lines_iter.line_number, layout_line, f"Duplicate key '{key}' in layout block", error_level=2)
                         layout_block[key] = value.strip()
+                    else:
+                        break
 
                     next(lines_iter)
 
                 if not end_layout_block_found:
-                    ErrorHandler.raise_error(file_path, lines_iter.line_number, line, "ENDLAYOUTBLOCK is missing")
+                    ErrorHandler.raise_error(file_path, lines_iter.line_number, lines_iter.peek().strip(), "ENDLAYOUTBLOCK is missing")
                 # Store the parsed layout block as a dictionary
                 self.file_metadata["LAYOUTBLOCK"] = layout_block
                 next(lines_iter)
@@ -126,7 +128,7 @@ class WndParser:
             if self._valid_match(match, lines_iter.line_number, line, file_path):
                 key, value = match.groups()
                 if key in self.file_metadata:
-                    ErrorHandler.raise_error(file_path, lines_iter.line_number, line, f"Duplicate key '{key}' in metadata")
+                    ErrorHandler.raise_error(file_path, lines_iter.line_number, line, f"Duplicate key '{key}' in metadata", error_level=2)
                 self.file_metadata[key] = value
 
             # If FILE_VERSION tag is found
@@ -139,7 +141,7 @@ class WndParser:
         if not start_layout_block_found or not end_layout_block_found:
             ErrorHandler.raise_error(file_path, lines_iter.line_number, 0, "LAYOUTBLOCK is missing or improperly formatted")
         if not file_version_found:
-            ErrorHandler.raise_error(file_path, lines_iter.line_number, 0, "Missing FILE_VERSION")
+            ErrorHandler.raise_error(file_path, lines_iter.line_number, 0, "Missing FILE_VERSION", error_level=2)
 
     def _parse_windows(self, lines_iter, file_path):
         """
@@ -225,7 +227,7 @@ class WndParser:
             if not (line == "WINDOW" or line == "END" or line == "CHILD" or line == "ENDALLCHILDREN" or line.startswith(
                     ';')):
                 # Throw an error if an invalid line is encountered
-                ErrorHandler.raise_error(file_path, lines_iter.line_number, line, "Unexpected line encountered.")
+                ErrorHandler.raise_error(file_path, lines_iter.line_number, line, "Unexpected line encountered.", error_level=2)
 
             next(lines_iter)  # Continue processing the next line
 

@@ -2,6 +2,11 @@ import re
 from src.error_handler import ErrorHandler
 from src.window.line_iterator import LineIterator
 
+class InvalidValuesError(Exception):
+    """Exception raised when the values are invalid."""
+    def __init__(self, message="Invalid values provided"):
+        self.message = message
+        super().__init__(self.message)
 
 class Window:
     def __init__(self, window_key, config=None, children=None):
@@ -59,15 +64,15 @@ class Config:
         # Font name must be one of the valid options
         valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals"]
         if value["name"] not in valid_fonts:
-            raise ValueError(f"Invalid font name: {value['name']}. Valid options: {valid_fonts}")
+            raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid options: {valid_fonts}")
 
         # Font size must be between 8 and 72
         if not (8 <= value["size"] <= 72):
-            raise ValueError("Font size must be between 8 and 72.")
+            raise InvalidValuesError("Font size must be between 8 and 72.")
 
         # Bold value must be either 0 or 1
         if value["bold"] not in [0, 1]:
-            raise ValueError("Font bold must be either 0 or 1.")
+            raise InvalidValuesError("Font bold must be either 0 or 1.")
 
         self._font = value
 
@@ -80,7 +85,7 @@ class Config:
         valid_status = ["ENABLED", "DISABLED", "IMAGE", "HIDDEN"]
         # Status must be one of the predefined options
         if not any(status in value for status in valid_status):
-            raise ValueError(f"Invalid status: {value}. Valid options: {valid_status}")
+            raise InvalidValuesError(f"Invalid status: {value}. Valid options: {valid_status}")
         self._status = value
 
     @property
@@ -94,15 +99,15 @@ class Config:
 
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
-            raise ValueError(f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
+            raise InvalidValuesError(f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
         #
-        # # Check that bottom_right coordinates are within the bounds of creation_resolution
+        # # # Check that bottom_right coordinates are within the bounds of creation_resolution
         if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-            raise ValueError(f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
+            raise InvalidValuesError(f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
-            raise ValueError("Rectangle size must be at least 1x1 pixel.")
+            raise InvalidValuesError("Rectangle size must be at least 1x1 pixel.")
 
         # If all validations pass, store the value
         self._screen_rect = value
@@ -123,7 +128,7 @@ class Config:
         # Every color must be in RGBA format with values between 0 and 255
         for color_name, color in value.items():
             if not self._is_valid_color(color):
-                raise ValueError(
+                raise InvalidValuesError(
                     f"Invalid color for {color_name}: {color}. Colors must be in RGBA format with values between 0 and 255.")
 
         self._text_color = value
@@ -131,25 +136,25 @@ class Config:
     # Utility function to validate RGBA color format
     def _validate_rgba(self, color):
         if len(color) != 4:
-            raise ValueError("Color must have exactly 4 values (R, G, B, A).")
+            raise InvalidValuesError("Color must have exactly 4 values (R, G, B, A).")
         for value in color:
             if not (0 <= value <= 255):
-                raise ValueError("Color values must be between 0 and 255.")
+                raise InvalidValuesError("Color values must be between 0 and 255.")
 
     # Utility function to validate IMAGE field
     def _validate_image(self, image):
         if image != "NoImage" and not isinstance(image, str):
-            raise ValueError("Image must be a string or 'NoImage'.")
+            raise InvalidValuesError("Image must be a string or 'NoImage'.")
 
     # General draw data validation
     def _validate_draw_data(self, draw_data):
         # Validate the format for each entry
         if not isinstance(draw_data, list) or len(draw_data) != 9:
-            raise ValueError("Draw data must be a list with exactly 9 items.")
+            raise InvalidValuesError(f"Draw data must be a list with exactly 9 items, len: {len(draw_data)}")
 
         for entry in draw_data:
             if "image" not in entry or "color" not in entry or "border_color" not in entry:
-                raise ValueError("Each draw data entry must contain IMAGE, COLOR, and BORDERCOLOR.")
+                raise InvalidValuesError("Each draw data entry must contain IMAGE, COLOR, and BORDERCOLOR.")
             self._validate_image(entry["image"])
             self._validate_rgba(entry["color"])
             self._validate_rgba(entry["border_color"])
@@ -326,6 +331,7 @@ def parse_config_fields(lines_iter):
 # Function to parse the window configuration and return a Config object
 def parse_window_config(lines_iter):
     # Initialize variables to store parsed data
+    line_start = lines_iter.line_number
     window_type = ""
     screen_rect = {}
     name = ""
@@ -455,7 +461,7 @@ def parse_window_config(lines_iter):
         except StopIteration:
             break
         except ValueError as e:
-            ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, e)
+            ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, e, error_level=2)
 
     # Return the Config object with the parsed data
     try:
@@ -481,4 +487,7 @@ def parse_window_config(lines_iter):
             config_fields=config_fields
         )
     except ValueError as e:
-        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, -1, e)
+        ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)
+    except InvalidValuesError as e:
+        ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=2)
+

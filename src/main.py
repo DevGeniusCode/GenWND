@@ -4,17 +4,25 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QTa
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 import os
+import traceback
+
 
 from object_tree import ObjectTree
 from file_tree import FileTree
 from src.window.wnd_parser import WndParser
-
+from log_manager import LogManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("WND Editor")
         self.resize(1200, 800)
+
+        # Initialize logging
+        self.log_manager = LogManager()
+
+        # Setup exception handling
+        sys.excepthook = self.handle_exception
 
         # Top menu bar
         menu_bar = QMenuBar()
@@ -94,7 +102,7 @@ class MainWindow(QMainWindow):
 
         self.update_root_path_label()
 
-        # load styles
+        # Load styles
         self.load_styles()
 
     def update_root_path_label(self):
@@ -138,25 +146,40 @@ class MainWindow(QMainWindow):
         """Handle opening a file"""
         file, _ = QFileDialog.getOpenFileName(self, "Open File", "", "WND Files (*.wnd);;All Files (*)")
         if file:
-            print(f"File selected: {file}")
+            self.log_manager.log(f"Logged info: File selected: {file}", level="INFO")
             self.load_wnd_file(file)
 
     def load_wnd_file(self, file_path):
         """Load and parse the WND file, then display the object tree"""
-        parser = WndParser()
-        parser.parse_file(file_path)  # Parse the WND file
-        windows = parser.get_windows()  # Get the list of windows (hierarchy)
+        try:
+            parser = WndParser()
+            parser.parse_file(file_path)  # Parse the WND file
+            windows = parser.get_windows()  # Get the list of windows (hierarchy)
 
-        # Load the objects into the object tree view
-        self.object_tree.load_objects(windows)
+            # Load the objects into the object tree view
+            self.log_manager.log(f"Load objects file {file_path}", level="INFO")
+            self.object_tree.load_objects(windows)
+
+        except ValueError as e:
+            self.log_manager.log(f"Aborting file {file_path} load due to error: {e}", level="ERROR")
+            self.object_tree.model.clear()
 
     def open_folder(self):
         """Handle opening a folder"""
         folder = QFileDialog.getExistingDirectory(self, "Open Folder")
         if folder:
+            self.log_manager.log(f"Logged info: Folder selected: {folder}", level="INFO")
             self.file_tree.set_root_path(folder)
             self.update_root_path_label()
-            print(f"Folder selected: {folder}")
+
+    def handle_exception(self, exc_type, exc_value, exc_tb):
+        """Handle uncaught exceptions globally"""
+        exception_message = f"Uncaught Exception: {exc_value}"
+        stack_trace = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+
+        # Log the exception using the log manager
+        self.log_manager.log_exception(exc_value)
+        self.log_manager.log_exception(stack_trace)
 
 
 if __name__ == "__main__":

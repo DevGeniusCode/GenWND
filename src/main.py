@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.object_tree.object_selected_signal.connect(self.select_object)
 
         # Property Editor (for object details)
-        self.property_editor = PropertyEditor(self)
+        self.property_editor = PropertyEditor(self, main_window=self)
         self.property_editor.setMinimumWidth(300)
 
         # Toggle Buttons for object tree and property editor

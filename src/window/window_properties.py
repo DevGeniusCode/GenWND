@@ -566,8 +566,9 @@ def parse_window_properties(lines_iter):
             if line in ["END", "CHILD", "ENDALLCHILDREN"]:
                 break
 
-            if "=" not in line:
-                continue  # Skip invalid lines without '='
+            if "=" not in line and not line.startwith(";"):
+                ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
+                "Unexpeced line", error_level=2)
 
             tag = line.split('=')[0].strip()
 

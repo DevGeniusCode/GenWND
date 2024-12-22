@@ -179,21 +179,28 @@ parser = {
     # """
 
 
-מבנה תיקיות וקבצים 
- 
+files and folders:
+
 WNDEdit\logs\log_current.log 
-WNDEdit\logs\log_current_old.log 
-WNDEdit\resources\window_properties.py 
-WNDEdit\resources\example.wnd 
-WNDEdit\resources\styles.qss 
-WNDEdit\src\error_handler.py 
-WNDEdit\src\file_tree.py 
-WNDEdit\src\log_manager.py 
-WNDEdit\src\main.py 
-WNDEdit\src\object_tree.py 
-WNDEdit\src\property_editor.py 
-WNDEdit\src\window\line_iterator.py 
-WNDEdit\src\window\window.py 
+WNDEdit\logs\log_current_old.log
+WNDEdit\resources\config.py
+WNDEdit\resources\example.wnd
+WNDEdit\resources\hierarchy.txt
+WNDEdit\resources\styles.qss
+WNDEdit\resources\icons\branch-closed.png
+WNDEdit\resources\icons\branch-end.png
+WNDEdit\resources\icons\branch-more.png
+WNDEdit\resources\icons\branch-open.png
+WNDEdit\resources\icons\vline.png
+WNDEdit\resources\wiki\SCROLLLISTBOX.md
+WNDEdit\src\error_handler.py
+WNDEdit\src\file_tree.py
+WNDEdit\src\log_manager.py
+WNDEdit\src\main.py
+WNDEdit\src\object_tree.py
+WNDEdit\src\property_editor.py
+WNDEdit\src\window\line_iterator.py
+WNDEdit\src\window\window_properties.py
 WNDEdit\src\window\wnd_parser.py 
 
 

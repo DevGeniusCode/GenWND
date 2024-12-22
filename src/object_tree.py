@@ -5,8 +5,8 @@ from PyQt6.QtCore import pyqtSignal, QObject
 
 
 class ObjectTree(QTreeView):
-    # Define a new signal to notify MainWindow when an object is selected
-    object_selected_signal = pyqtSignal(str)
+    # Signal to notify when an object is selected
+    object_selected_signal = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -18,10 +18,7 @@ class ObjectTree(QTreeView):
         self.selectionModel().selectionChanged.connect(self.on_item_selected)
 
     def load_objects(self, windows):
-        """
-        Load windows into the tree view.
-        :param windows: List of Window objects to display in the tree.
-        """
+        """Load the windows into the tree view."""
         self.model.clear()
         self._populate_tree(windows, self.model)
 
@@ -32,7 +29,8 @@ class ObjectTree(QTreeView):
         :param parent_item: Parent item in the tree to append items
         """
         for window in windows:
-            item = QStandardItem(f"{window.options.get('WINDOWTYPE')} - {window.options.get('NAME', 'Unnamed')}")
+            item = QStandardItem(f"{window.properties.get('WINDOWTYPE')} - {window.properties.get('NAME', 'Unnamed')}")
+            item.setData(window)
             parent_item.appendRow(item)
             if window.children:
                 self._populate_tree(window.children, item)
@@ -43,12 +41,10 @@ class ObjectTree(QTreeView):
         """
         selected_indexes = self.selectedIndexes()
         if selected_indexes:
-            # Get the selected item and extract its text
+            # Get the selected item
             selected_item = self.model.itemFromIndex(selected_indexes[0])
-            selected_object_name = selected_item.text()
-
-            # Emit the signal to notify MainWindow of the selected object
-            self.object_selected_signal.emit(selected_object_name)
+            selected_object = selected_item.data()
+            self.object_selected_signal.emit(selected_object)
 
     def display_error(self, error_message):
         """

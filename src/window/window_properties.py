@@ -12,23 +12,23 @@ class InvalidValuesError(Exception):
 
 
 class Window:
-    def __init__(self, window_key, config=None, children=None):
+    def __init__(self, window_uuid, window_properties=None, children=None):
         """
         Initializes a new window object.
-        :param window_key: A unique identifier for the window (UUID).
-        :param config: Configuration options for the window.
+        :param window_uuid: A unique identifier for the window (UUID).
+        :param window_properties: Configuration properties for the window.
         :param children: A list of child windows, defaults to an empty list if no children are provided.
         """
-        self.window_key = window_key
-        self.options = config or {}
+        self.window_uuid = window_uuid
+        self.properties = window_properties or {}
         self.children = children if children is not None else []
 
 
-class Config:
+class WindowProperties:
     def __init__(self, window_type, screen_rect, name, status, style,
                  system_callback, input_callback, tooltip_callback, draw_callback,
                  font, header_template, tooltip_text, tooltip_delay, text, text_color, enabled_draw_data,
-                 disabled_draw_data, hilited_draw_data, config_fields):
+                 disabled_draw_data, hilited_draw_data, extra_properties):
         self.WINDOWTYPE = window_type
         self.SCREENRECT = screen_rect
         self.NAME = name
@@ -47,7 +47,7 @@ class Config:
         self._ENABLEDDRAWDATA = enabled_draw_data
         self._DISABLEDDRAWDATA = disabled_draw_data
         self._HILITEDRAWDATA = hilited_draw_data
-        self.config_fields = config_fields
+        self.extra_properties = extra_properties
 
     def get(self, key, default=None):
         """
@@ -65,10 +65,10 @@ class Config:
 
     @FONT.setter
     def FONT(self, value):
-        # Font name must be one of the valid options
+        # Font name must be one of the valid properties
         valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals"]
         if value["name"] not in valid_fonts:
-            raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid options: {valid_fonts}")
+            raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid properties: {valid_fonts}")
 
         # Font size must be between 8 and 72
         if not (8 <= value["size"] <= 72):
@@ -87,9 +87,9 @@ class Config:
     @STATUS.setter
     def STATUS(self, value):
         valid_status = ["ENABLED", "DISABLED", "IMAGE", "HIDDEN"]
-        # Status must be one of the predefined options
+        # Status must be one of the predefined properties
         if not any(status in value for status in valid_status):
-            raise InvalidValuesError(f"Invalid status: {value}. Valid options: {valid_status}")
+            raise InvalidValuesError(f"Invalid status: {value}. Valid properties: {valid_status}")
         self._status = value
 
     @property
@@ -107,9 +107,9 @@ class Config:
                 f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
         #
         # # # Check that bottom_right coordinates are within the bounds of creation_resolution
-        if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-            raise InvalidValuesError(
-                f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
+        # if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
+        #     raise InvalidValuesError(
+        #         f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
@@ -296,16 +296,16 @@ class Config:
         # Join the formatted lines into a final string
         return "\n".join(formatted_lines)
 
-    def _format_config_fields(self):
+    def _format_extra_properties(self):
         """
-        Formats the configuration fields into a human-readable string.
+        Formats the properties fields into a human-readable string.
 
         Returns:
-            str: The formatted configuration fields string.
+            str: The formatted properties fields string.
         """
         output = []
-        if self.config_fields:
-            for key, value in self.config_fields.items():
+        if self.extra_properties:
+            for key, value in self.extra_properties.items():
                 if isinstance(value, dict):  # Format 1
                     formatted_lines = [f"{key} ="]  # Start with the key line
                     indent = " " * (len(key + ' = '))  # Account for the indentation after '='
@@ -370,8 +370,8 @@ class Config:
         output.append(f"DISABLEDDRAWDATA = {self._format_draw_data(self.disabled_draw_data, 'DISABLEDDRAWDATA')}")
         output.append(f"HILITEDRAWDATA = {self._format_draw_data(self.hilite_draw_data, 'HILITEDRAWDATA')}")
 
-        # Add configuration fields if they exist
-        output.append(self._format_config_fields())
+        # Add properties fields if they exist
+        output.append(self._format_extra_properties())
 
         return '\n'.join(output)
 
@@ -467,9 +467,9 @@ def parse_color_field(value):
     return color_data
 
 
-def parse_config_fields(lines_iter):
+def parse_extra_properties(lines_iter):
     # Dictionary to store parsed values
-    config_fields = {}
+    extra_properties = {}
     combined_line = ""
     tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
     while True:
@@ -485,7 +485,7 @@ def parse_config_fields(lines_iter):
                     value = value.strip()
                     # Handling draw data (like IMAGE, COLOR, BORDERCOLOR)
                     if tag.endswith("DRAWDATA"):
-                        config_fields[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
+                        extra_properties[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
                     elif tag.endswith("DATA"):
                         subfields = {}
                         sub_lines_iter = LineIterator(value.split(','))  # create iterator for subfields
@@ -519,20 +519,20 @@ def parse_config_fields(lines_iter):
                                         raise ValueError(
                                             f"Number of COLUMNSWIDTH ({len(subfields['COLUMNSWIDTH'])}) does not match COLUMNS ({subfields['COLUMNS']})")
                                 break
-                        config_fields[tag] = subfields
+                        extra_properties[tag] = subfields
                     else:
                         raise ValueError("Invalid data")
                 else:
-                    raise ValueError("Invalid config field format")
+                    raise ValueError("Invalid window_properties field format")
                 combined_line = ""
             next(lines_iter)
         except StopIteration:
             break
-    return config_fields
+    return extra_properties
 
 
-# Function to parse the window configuration and return a Config object
-def parse_window_config(lines_iter):
+# Function to parse the window properties and return a WindowProperties object
+def parse_window_properties(lines_iter):
     # Initialize variables to store parsed data
     line_start = lines_iter.line_number
     window_type = ""
@@ -553,7 +553,7 @@ def parse_window_config(lines_iter):
     enabled_draw_data = []
     disabled_draw_data = []
     hilited_draw_data = {}
-    config_fields = {}
+    extra_properties = {}
 
     # A list to track tags we've seen so far, in the order they were encountered
     encountered_tags = []
@@ -655,7 +655,7 @@ def parse_window_config(lines_iter):
 
                 # Handle other fields or additional custom parsing
                 case _:
-                    config_fields = parse_config_fields(lines_iter)
+                    extra_properties = parse_extra_properties(lines_iter)
 
             # After processing, add the tag to the list of encountered tags
             line = lines_iter.peek().strip().rstrip(";")
@@ -670,9 +670,9 @@ def parse_window_config(lines_iter):
         except ValueError as e:
             ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, e, error_level=2)
 
-    # Return the Config object with the parsed data
+    # Return the WindowProperties object with the parsed data
     try:
-        return Config(
+        return WindowProperties(
             window_type=window_type,
             screen_rect=screen_rect,
             name=name,
@@ -691,7 +691,7 @@ def parse_window_config(lines_iter):
             enabled_draw_data=enabled_draw_data,
             disabled_draw_data=disabled_draw_data,
             hilited_draw_data=hilited_draw_data,
-            config_fields=config_fields
+            extra_properties=extra_properties
         )
     except ValueError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)

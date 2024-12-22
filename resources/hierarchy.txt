@@ -1,11 +1,11 @@
 WINDOW
   WINDOWTYPE = USER
   NAME = "dummy"
-	... rest of window options
+	... rest of window properties
   CHILD
   WINDOW ; child
     WINDOWTYPE = CHEAKBOX;
-	... rest of window child options
+	... rest of window child properties
   END
   ENDALLCHILDREN
 END
@@ -21,33 +21,60 @@ NAME
 
 
 
-Window Key: uud
-Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
-Children: [
-    Window Key: uud
-    Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
-    Children: []
-
-    Window Key: uud
-    Options: {'OPTION3': 'value3'}
-    Children: []
-
-    Window Key: uud
-    Options: {'OPTION4': 'value4'}
-    Children: [
-        Window Key: uud
-        Options: {'OPTION5': 'value5'}
-        Children: []
+parser = {
+    'file_metadata': {
+        'FILE_VERSION': 'num',
+        'LAYOUTBLOCK': {
+            'LAYOUTINIT': 'value',
+            'LAYOUTSHUTDOWN': 'value',
+            'LAYOUTUPDATE': 'value'
+        }
+    },
+    'windows': [
+        Window(
+            KEY=uuid1,
+            properties=WindowProperties(
+                WINDOWTYPE="BUTTON",
+                SCREENRECT={"x": 100, "y": 150, "width": 200, "height": 50},
+                NAME="Button1",
+                STATUS=["ENABLED"],
+                STYLE=["MOUSETRACK"],
+                SYSTEMCALLBACK="OnClick",
+                INPUTCALLBACK="OnKeyPress",
+                TOOLTIPCALLBACK="OnTooltip",
+                DRAWCALLBACK="OnDraw",
+                FONT={"name": "Arial", "size": 12, "bold": 1},
+                HEADERTEMPLATE="Header1",
+                TOOLTIPTEXT="Click me",
+                TOOLTIPDELAY=1000,
+                TEXT="Click me",
+                TEXTCOLOR={"r": 255, "g": 255, "b": 255},
+                ENABLEDDRAWDATA=["data1", "data2"],
+                DISABLEDDRAWDATA=["data3", "data4"],
+                HILITEDRAWDATA={"color": "red"},
+                properties_fields={}
+            ),
+            CHILDREN=[
+                Window(
+                    KEY=uuid2,
+                    properties=WindowProperties(
+                        WINDOWTYPE="TEXTBOX",
+                        SCREENRECT={"x": 120, "y": 200, "width": 300, "height": 40},
+                        # rest of properties
+                    ),
+                    CHILDREN=[]
+                )
+            ]
+        )
     ]
-]
 
 
     # # Example usage:
     # # Assuming 'parser' is an instance of ConfigParser
-    # # and has already parsed your config string
+    # # and has already parsed your window_properties string
     # # Example usage:
     # # Assuming 'parser' is an instance of ConfigParser
-    # # and has already parsed your config string
+    # # and has already parsed your window_properties string
     # config_string = """
     # WINDOW
     #   WINDOWTYPE = USER
@@ -71,12 +98,12 @@ Children: [
     # WINDOW
     #   WINDOWTYPE = USER
     #   NAME = "dummy"
-    #     ... rest of window options
+    #     ... rest of window properties
     #   CHILD
     #   WINDOW ; child
     #     WINDOWTYPE = CHEAKBOX;
     #     NAME = "checkbox2"
-    #     ... rest of window child options
+    #     ... rest of window child properties
     #   END
     #   ENDALLCHILDREN
     # END
@@ -85,33 +112,52 @@ Children: [
     # config_string_3 = """
     # WINDOW
     #   NAME = "root"
-    #   Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #   properties: {'OPTION1': 'value1', 'OPTION2': 'value2'}
     #   CHILD
     #     WINDOW
     #     NAME = "child1"
-    #     Options: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #     properties: {'OPTION1': 'value1', 'OPTION2': 'value2'}
     #     CHILD
     #     WINDOW
     #       NAME = "child1child1"
-    #       Options: {'OPTION5': 'value5'}
+    #       properties: {'OPTION5': 'value5'}
     #     END
     #     ENDALLCHILDREN
     #
     #     WINDOW
     #     NAME = "child2"
-    #     Options: {'OPTION3': 'value3'}
+    #     properties: {'OPTION3': 'value3'}
     #   END
     #     CHILD
     #       WINDOW
     #        NAME = "child3"
-    #       Options: {'OPTION4': 'value4'}
+    #       properties: {'OPTION4': 'value4'}
     #       CHILD
     #         WINDOW
     #         NAME = "child3child1"
-    #         Options: {'OPTION5': 'value5'}
+    #         properties: {'OPTION5': 'value5'}
     #         END
     #     END
     #   ENDALLCHILDREN
     # END
     # """
+
+
+מבנה תיקיות וקבצים 
+ 
+WNDEdit\logs\log_current.log 
+WNDEdit\logs\log_current_old.log 
+WNDEdit\resources\window_properties.py 
+WNDEdit\resources\example.wnd 
+WNDEdit\resources\styles.qss 
+WNDEdit\src\error_handler.py 
+WNDEdit\src\file_tree.py 
+WNDEdit\src\log_manager.py 
+WNDEdit\src\main.py 
+WNDEdit\src\object_tree.py 
+WNDEdit\src\property_editor.py 
+WNDEdit\src\window\line_iterator.py 
+WNDEdit\src\window\window.py 
+WNDEdit\src\window\wnd_parser.py 
+
 

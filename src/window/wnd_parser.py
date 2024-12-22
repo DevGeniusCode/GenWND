@@ -1,5 +1,5 @@
 import uuid
-from src.window.window import *
+from src.window.window_properties import *
 from src.error_handler import ErrorHandler
 from src.window.line_iterator import LineIterator
 
@@ -47,8 +47,8 @@ class WndParser:
         indent = "  " * indent_level
         lines.append(f"{indent}WINDOW")
 
-        # Add window options (e.g., name, type, etc.)
-        options_repr = repr(window.options)
+        # Add window properties (e.g., name, type, etc.)
+        options_repr = repr(window.properties)
         for line in options_repr.splitlines():
             lines.append(f"{indent}  {line}")  # Add 2 more spaces for indentation inside the window
 
@@ -205,7 +205,7 @@ class WndParser:
         - "ENDALLCHILDREN" marks the end of a block of child windows for the current parent, without altering the parent-child
           relationship.
 
-        Each window is assigned a unique identifier (UUID), and its configuration options are parsed and stored in a dictionary.
+        Each window is assigned a unique identifier (UUID), and its properties are parsed and stored in a dictionary.
         Child windows are added to their parent window’s `children` list, creating a tree-like structure.
 
         :param lines_iter: An iterator over the configuration lines. Starts with the first "WINDOW" line.
@@ -227,16 +227,16 @@ class WndParser:
             if line == "WINDOW":
                 next(lines_iter)
                 # Create a unique UUID for the window
-                window_key = str(uuid.uuid4())
+                window_uuid = str(uuid.uuid4())
 
-                # Parse the window's configuration using the parse_window_config function
-                window_config = parse_window_config(lines_iter)
+                # Parse the window's properties using the parse_window_properties function
+                window_properties = parse_window_properties(lines_iter)
                 next_line = lines_iter.peek().strip()
                 if next_line.startswith("END") or next_line.startswith("CHILD"):
                     line = next_line
 
-                # Create a new Window object with its configuration
-                new_window = Window(window_key, config=window_config, children=[])
+                # Create a new Window object with its properties
+                new_window = Window(window_uuid, window_properties=window_properties, children=[])
 
                 # If there is a parent window, add the new window as a child of the correct parent
                 if parent_window:
@@ -307,11 +307,11 @@ def print_window_hierarchy(windows, indent_level=0):
     """
     for window in windows:
         # Extract window name, default to "UNKNOWN" if not found
-        window_name = window.options.get('name', 'Unnamed')
+        window_name = window.properties.get('name', 'Unnamed')
         if window_name:
-            complete_name = f"{ window.options.WINDOWTYPE}:{window_name}"
+            complete_name = f"{ window.properties.WINDOWTYPE}:{window_name}"
         else:
-            complete_name = f"{ window.options.WINDOWTYPE}"
+            complete_name = f"{ window.properties.WINDOWTYPE}"
 
         # Print the window name with proper indentation
         indent = "   " * indent_level  # Use spaces for indent

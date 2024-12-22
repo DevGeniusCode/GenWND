@@ -50,7 +50,7 @@ WNDEdit/
 
 7. **window/line_iterator.py**: Allows line-by-line iteration through the WND file, including a line counter and filename.
 
-8. **window/window.py**: Processes a single window structure from the WND file, creating objects with window properties (Config).
+8. **window/window.py**: Processes a single window structure from the WND file, creating objects with window properties (WindowProperties).
 
 9. **window/wnd_parser.py**: A processing file that parses a WND file and returns an object representing the window hierarchy.
 
@@ -62,11 +62,11 @@ A WND file is a simple text file containing UI settings for the game. Here's an 
 WINDOW
   WINDOWTYPE = USER
   NAME = "dummy"
-  ... rest of window options
+  ... rest of window properties
   CHILD
   WINDOW ; child
     WINDOWTYPE = CHECKBOX
-    ... rest of window child options
+    ... rest of window child properties
   END
   ENDALLCHILDREN
 END
@@ -87,25 +87,25 @@ parser = {
     'windows': [
         Window(
             key=uuid1,  # Random UUID for each window
-            options={'OPTION1': 'value1', 'OPTION2': 'value2'},
+            properties={'OPTION1': 'value1', 'OPTION2': 'value2'},
             children=[
                 Window(
                     key=uuid2,
-                    options={'OPTION1': 'value1', 'OPTION2': 'value2'},
+                    properties={'OPTION1': 'value1', 'OPTION2': 'value2'},
                     children=[]
                 ),
                 Window(
                     key=uuid3,
-                    options={'OPTION3': 'value3'},
+                    properties={'OPTION3': 'value3'},
                     children=[]
                 ),
                 Window(
                     key=uuid4,
-                    options={'OPTION4': 'value4'},
+                    properties={'OPTION4': 'value4'},
                     children=[
                         Window(
                             key=uuid5,
-                            options={'OPTION5': 'value5'},
+                            properties={'OPTION5': 'value5'},
                             children=[]
                         )
                     ]

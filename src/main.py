@@ -8,6 +8,7 @@ import traceback
 
 from object_tree import ObjectTree
 from file_tree import FileTree
+from property_editor import PropertyEditor
 from src.window.wnd_parser import WndParser
 from log_manager import LogManager
 
@@ -79,8 +80,8 @@ class MainWindow(QMainWindow):
         # Connect the object selected signal to the update function
         self.object_tree.object_selected_signal.connect(self.select_object)
 
-        # Property Editor (for window details)
-        self.property_editor = QTableView()
+        # Property Editor (for object details)
+        self.property_editor = PropertyEditor(self)
         self.property_editor.setMinimumWidth(300)
 
         # Toggle Buttons for object tree and property editor
@@ -124,18 +125,19 @@ class MainWindow(QMainWindow):
 
         # Enable drag and drop
         self.setAcceptDrops(True)
-    def select_object(self, obj_name):
+    def select_object(self, window_object):
         """Handles selection of an object from the object tree"""
-        self.selected_object = obj_name
+        self.selected_object = window_object
         self.update_status_bar()  # Update status bar with selected object
-
+        self.load_object_property()
         # Log the selected object
-        self.log_manager.log(f"Object selected: {obj_name}", level="INFO")
+        if self.selected_object:
+            self.log_manager.log(f"Object selected: {window_object.properties.get('WINDOWTYPE')} - {window_object.properties.get('NAME', 'Unnamed')}", level="INFO")
 
     def select_file(self, file_path):
         """Handles selection of a file from the file tree"""
         self.selected_file = file_path
-        self.selected_object = None  # Reset the selected object when a new file is selected
+        # self.selected_object = None  # Reset the selected object when a new file is selected
         self.update_status_bar()  # Update status bar with selected file
 
         # Log the selected file
@@ -204,8 +206,11 @@ class MainWindow(QMainWindow):
             file_name = "Folder selected"
 
         if hasattr(self, 'selected_object') and self.selected_object:
-            object_name = f"Object: {self.selected_object}"
-
+            # Show the name of the selected object in the status bar
+            try:
+                object_name = f"Object: {self.selected_object.properties.get('WINDOWTYPE')} - {self.selected_object.properties.get('NAME', 'Unnamed')}"
+            except AttributeError:
+                object_name = f"{str(self.selected_object)}"
         # Combine all information
         status_text = f"{root_path_info} | {file_name} | {object_name}"
 
@@ -271,9 +276,22 @@ class MainWindow(QMainWindow):
             error_message = f"Error loading file: {e}"
             self.log_manager.log(error_message, level="ERROR")
             self.object_tree.display_error(error_message)
+            self.selected_object = error_message
+            self.update_status_bar()
 
 
+    def load_object_property(self):
+        """Loads and parses the WND file, and displays the object tree."""
+        if self.selected_object:
+            try:
+                # Load the windows into the object tree
+                self.property_editor.load_property(self.selected_object.properties)
+                self.log_manager.log(f"Loaded properties from object {self.selected_object.properties.get('WINDOWTYPE')} - {self.selected_object.properties.get('NAME', 'Unnamed')}", level="INFO")
 
+            except ValueError as e:
+                error_message = f"Error loading object: {e}"
+                self.log_manager.log(error_message, level="ERROR")
+                self.property_editor.display_error(error_message)
 
     def open_folder(self):
         """Handle opening a folder"""
@@ -283,6 +301,7 @@ class MainWindow(QMainWindow):
             self.file_tree.set_root_path(folder)
             self.selected_file = None  # Reset the selected file when a folder is selected
             self.selected_object = None  # Reset the selected object as well
+            self.property_editor.property_model.clear()
             self.update_status_bar()  # Update status bar
 
     def handle_exception(self, exc_type, exc_value, exc_tb):

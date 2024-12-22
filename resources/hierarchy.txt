@@ -20,10 +20,10 @@ NAME
        |-NAME
 
 
-
+```python
 parser = {
     'file_metadata': {
-        'FILE_VERSION': 'num',
+        'FILE_VERSION': 1,
         'LAYOUTBLOCK': {
             'LAYOUTINIT': 'value',
             'LAYOUTSHUTDOWN': 'value',
@@ -31,42 +31,78 @@ parser = {
         }
     },
     'windows': [
-        Window(
-            KEY=uuid1,
-            properties=WindowProperties(
-                WINDOWTYPE="BUTTON",
-                SCREENRECT={"x": 100, "y": 150, "width": 200, "height": 50},
-                NAME="Button1",
-                STATUS=["ENABLED"],
-                STYLE=["MOUSETRACK"],
-                SYSTEMCALLBACK="OnClick",
-                INPUTCALLBACK="OnKeyPress",
-                TOOLTIPCALLBACK="OnTooltip",
-                DRAWCALLBACK="OnDraw",
-                FONT={"name": "Arial", "size": 12, "bold": 1},
-                HEADERTEMPLATE="Header1",
-                TOOLTIPTEXT="Click me",
-                TOOLTIPDELAY=1000,
-                TEXT="Click me",
-                TEXTCOLOR={"r": 255, "g": 255, "b": 255},
-                ENABLEDDRAWDATA=["data1", "data2"],
-                DISABLEDDRAWDATA=["data3", "data4"],
-                HILITEDRAWDATA={"color": "red"},
-                properties_fields={}
-            ),
-            CHILDREN=[
-                Window(
-                    KEY=uuid2,
-                    properties=WindowProperties(
-                        WINDOWTYPE="TEXTBOX",
-                        SCREENRECT={"x": 120, "y": 200, "width": 300, "height": 40},
+        {
+            'window_key': 'uuid1',
+            'properties': {
+                'WINDOWTYPE': 'SCROLLLISTBOX',
+                'SCREENRECT': [
+                    {'UPPERLEFT': [68, 152]},
+                    {'BOTTOMRIGHT': [552, 428]},
+                    {'CREATIONRESOLUTION': [800, 600]}
+                ],
+                'NAME': 'ReplayMenu.wnd:ListboxReplayFiles',
+                'STATUS': ['ENABLED'],
+                'STYLE': ['SCROLLLISTBOX', 'MOUSETRACK'],
+                'SYSTEMCALLBACK': '[None]',
+                'INPUTCALLBACK': '[None]',
+                'TOOLTIPCALLBACK': '[None]',
+                'DRAWCALLBACK': '[None]',
+                'FONT': [
+                    {'NAME': 'Arial'},
+                    {'SIZE': 10},
+                    {'BOLD': 0}
+                ],
+                'HEADERTEMPLATE': 'LabelRegular',
+                'TOOLTIPDELAY': -1,
+                'TEXTCOLOR': [
+                    {'ENABLED': [254, 254, 254, 255]},
+                    {'ENABLEDBORDER': [0, 0, 0, 255]},
+                    {'DISABLED': [192, 192, 192, 255]},
+                    {'DISABLEDBORDER': [64, 64, 64, 255]},
+                    {'HILITE': [128, 128, 255, 255]},
+                    {'HILITEBORDER': [0, 0, 128, 255]}
+                ],
+                'ENABLEDDRAWDATA': [
+                    {'IMAGE': 'BlackSquare', 'COLOR': [0, 0, 0, 126], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'DISABLEDDRAWDATA': [
+                    {'IMAGE': 'NoImage', 'COLOR': [255, 4, 0, 0], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'HILITEDRAWDATA': [
+                    {'IMAGE': 'BlackSquare', 'COLOR': [0, 0, 0, 126], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'extra_properties': {
+                    'LISTBOXDATA': [
+                        {'LENGTH': 100},
+                        {'AUTOSCROLL': 0},
                         # rest of properties
-                    ),
-                    CHILDREN=[]
-                )
+                    ],
+                    'LISTBOXENABLEDUPBUTTONDRAWDATA': [
+                        {'IMAGE': 'VSliderUpButtonEnabled', 'COLOR': [255, 0, 0, 255], 'BORDERCOLOR': [255, 128, 128, 255]},
+                        # rest of 8 properties
+                    ]
+                    # rest of extra_properties
+                }
+            },
+            'CHILDREN': [
+                {
+                    'window_key': 'uuid2',
+                    'properties': {'OPTION': 'value'},
+                    'Children': []
+                }
             ]
-        )
+        },
+        {
+            'window_key': 'uuid3',
+            'properties': {'OPTION': 'value'},
+            'Children': []
+        }
     ]
+}
+```
 
 
     # # Example usage:

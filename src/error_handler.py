@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMessageBox
-from log_manager import LogManager
+from src.log_manager import LogManager
 
 class ErrorHandler:
     @staticmethod

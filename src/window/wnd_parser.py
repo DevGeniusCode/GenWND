@@ -325,7 +325,7 @@ def print_window_hierarchy(windows, indent_level=0):
 # Example usage
 if __name__ == "__main__":
     parser = WndParser()
-    parser.parse_file(r"C:\Users\User\Documents\OptionsMenu.wnd")
+    parser.parse_file(r"resources/example.wnd")
     print(parser)
     # print("Metadata:")
     # print(parser.get_metadata())

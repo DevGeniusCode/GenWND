@@ -306,34 +306,28 @@ class WindowProperties:
         output = []
         if self.extra_properties:
             for key, value in self.extra_properties.items():
-                if isinstance(value, dict):  # Format 1
-                    formatted_lines = [f"{key} ="]  # Start with the key line
-                    indent = " " * (len(key + ' = '))  # Account for the indentation after '='
-
-                    first = True
-                    for k, v in value.items():
-                        if k == "COLUMNSWIDTH":
-                            for width in v:
+                if isinstance(value, list):
+                    if key.endswith("DRAWDATA"):
+                        draw_data_str = self._format_draw_data(value, key)
+                        if draw_data_str:
+                            output.append(f"{key} = " + draw_data_str)
+                    else:
+                        formatted_lines = [f"{key} ="]
+                        indent = " " * (len(key + ' = '))
+                        first = True
+                        for item in value:
+                            # Process each dictionary in the list
+                            for k, v in item.items():
                                 if first:
-                                    formatted_lines[0] += f" {k}: {width},"
+                                    formatted_lines[0] += f" {k}: {v},"  # Add to the key line
                                     first = False
                                 else:
-                                    formatted_lines.append(f"{indent}{k}: {width},")
-                        else:
-                            if first:
-                                formatted_lines[0] += f" {k}: {v},"  # Add to the key line
-                                first = False
-                            else:
-                                formatted_lines.append(f"{indent}{k}: {v},")  # Subsequent values indented
+                                    formatted_lines.append(f"{indent}{k}: {v},")  # Subsequent values indented
 
-                    # Remove the last comma and add semicolon
-                    formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
+                        # Remove the last comma and add semicolon
+                        formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
+                        output.extend(formatted_lines)
 
-                    output.extend(formatted_lines)
-                elif isinstance(value, list):  # Format 2
-                    draw_data_str = self._format_draw_data(value, key)
-                    if draw_data_str:
-                        output.append(f"{key} = " + draw_data_str)
         return "\n".join(output)
 
     def __repr__(self):
@@ -472,6 +466,7 @@ def parse_extra_properties(lines_iter):
     extra_properties = {}
     combined_line = ""
     tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
+
     while True:
         try:
             line = lines_iter.peek().strip()
@@ -487,8 +482,11 @@ def parse_extra_properties(lines_iter):
                     if tag.endswith("DRAWDATA"):
                         extra_properties[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
                     elif tag.endswith("DATA"):
-                        subfields = {}
+                        subfields = []
                         sub_lines_iter = LineIterator(value.split(','))  # create iterator for subfields
+                        columns_value = None
+                        columns_widths = 0
+
                         while True:
                             try:
                                 sub_line = next(sub_lines_iter).strip()
@@ -499,25 +497,20 @@ def parse_extra_properties(lines_iter):
 
                                     if sub_name == "COLUMNS":
                                         # Save the COLUMNS value to check COLUMNSWIDTH later
-                                        # columns_value = sub_value
-                                        subfields[sub_name] = sub_value
+                                        columns_value = sub_value
                                     elif sub_name == "COLUMNSWIDTH":
-                                        # If COLUMNSWIDTH appears, store them in a list
-                                        if "COLUMNSWIDTH" not in subfields:
-                                            subfields["COLUMNSWIDTH"] = []
-                                        subfields["COLUMNSWIDTH"].append(sub_value)
-                                    else:
-                                        # For other subfields, just store the value
-                                        subfields[sub_name] = sub_value
+                                        # Collect COLUMNSWIDTH appears
+                                        columns_widths += 1
+                                    subfields.append({sub_name: sub_value})
                                 elif sub_line:  # Skip empty subfields
                                     raise ValueError(f"Invalid subfield format: '{sub_line}'")
 
                             except StopIteration:
                                 # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
-                                if "COLUMNS" in subfields and "COLUMNSWIDTH" in subfields:
-                                    if len(subfields["COLUMNSWIDTH"]) != subfields["COLUMNS"]:
+                                if columns_value is not None:
+                                    if columns_widths != columns_value:
                                         raise ValueError(
-                                            f"Number of COLUMNSWIDTH ({len(subfields['COLUMNSWIDTH'])}) does not match COLUMNS ({subfields['COLUMNS']})")
+                                            f"Number of COLUMNSWIDTH ({columns_widths}) does not match COLUMNS number({columns_value})")
                                 break
                         extra_properties[tag] = subfields
                     else:

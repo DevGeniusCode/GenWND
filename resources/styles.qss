@@ -95,3 +95,11 @@ QTreeView::branch:open:has-children:has-siblings  {
         border-image: #d4d4d4;
         image: url(resources/icons/branch-open.png);
 }
+
+#emptyLabel {
+    background-color: #1e1e1e;
+    color: #808080;
+    font-size: 24px;
+    font-weight: bold;
+    padding: 20px;
+}

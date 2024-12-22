@@ -509,8 +509,8 @@ def parse_extra_properties(lines_iter):
                                 # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
                                 if columns_value is not None:
                                     if columns_widths != columns_value:
-                                        raise ValueError(
-                                            f"Number of COLUMNSWIDTH ({columns_widths}) does not match COLUMNS number({columns_value})")
+                                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, combined_line,
+                                            f"Number of COLUMNSWIDTH ({columns_widths}) does not match COLUMNS number({columns_value})", error_level=2)
                                 break
                         extra_properties[tag] = subfields
                     else:
@@ -689,4 +689,4 @@ def parse_window_properties(lines_iter):
     except ValueError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)
     except InvalidValuesError as e:
-        ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=2)
+        ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)

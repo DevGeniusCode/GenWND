@@ -8,6 +8,7 @@ import shutil
 class FileTree(QTreeView):
     # Define a new signal to notify MainWindow when a file is selected
     file_selected_signal = pyqtSignal(str)
+    folder_selected_signal = pyqtSignal(str)
 
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
@@ -134,7 +135,7 @@ class FileTree(QTreeView):
                     # Reset file and object selection when a folder is selected
                     self.main_window.select_folder(file_path)
                     # Emit signal with the selected folder path
-                    self.file_selected_signal.emit(file_path)
+                    self.folder_selected_signal.emit(file_path)
 
 
     def add_file_action_handler(self,current_path = None):

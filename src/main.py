@@ -1,5 +1,5 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QTableView, QMenuBar, \
+from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QMenuBar, \
     QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
         self.root_path_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         # Connect the file selected signal to the update function
         self.file_tree.file_selected_signal.connect(self.select_file)
+        self.file_tree.folder_selected_signal.connect(self.select_folder)
 
         # Layout for file tree and path label
         file_tree_layout = QVBoxLayout()
@@ -128,7 +129,7 @@ class MainWindow(QMainWindow):
     def select_object(self, window_object):
         """Handles selection of an object from the object tree"""
         self.selected_object = window_object
-        self.update_status_bar()  # Update status bar with selected object
+        self.update_status_bar()
         self.load_object_property()
         # Log the selected object
         if self.selected_object:
@@ -137,16 +138,18 @@ class MainWindow(QMainWindow):
     def select_file(self, file_path):
         """Handles selection of a file from the file tree"""
         self.selected_file = file_path
-        # self.selected_object = None  # Reset the selected object when a new file is selected
-        self.update_status_bar()  # Update status bar with selected file
+        self.selected_object = None  # disable to display error in status bar
+        self.update_status_bar()
 
         # Log the selected file
         self.log_manager.log(f"File selected: {file_path}", level="INFO")
 
     def select_folder(self, folder_path):
         """Handles folder selection and resets file and object selections."""
-        self.selected_file = None  # No file selected
-        self.selected_object = None  # No object selected
+        self.selected_file = folder_path
+        self.selected_object = None
+        self.object_tree.clear()
+        self.property_editor.clear()
 
         self.update_status_bar()  # Update the status bar to reflect that only folder is selected
         self.log_manager.log(f"Folder selected: {folder_path}", level="INFO")
@@ -202,8 +205,8 @@ class MainWindow(QMainWindow):
         # Update the file name and object name if they are selected
         if hasattr(self, 'selected_file') and self.selected_file:
             file_name = f"File: {os.path.basename(self.selected_file)}"
-        elif not self.selected_file:
-            file_name = "Folder selected"
+        # elif not self.selected_file:
+        #     file_name = f"Folder: {os.path.basename(self.selected_file)}"
 
         if hasattr(self, 'selected_object') and self.selected_object:
             # Show the name of the selected object in the status bar
@@ -255,6 +258,8 @@ class MainWindow(QMainWindow):
             self.log_manager.log(f"Logged info: File selected: {file}", level="INFO")
             self.current_file = file
             self.selected_object = None
+            self.property_editor.clear()
+            self.object_tree.clear()
             self.update_status_bar()  # Update status bar
             self.load_wnd_file(file)
 
@@ -263,6 +268,7 @@ class MainWindow(QMainWindow):
         try:
             self.selected_file = file_path  # Store the selected file path
             self.selected_object = None  # Reset object selection
+            self.property_editor.clear()
             self.parser = WndParser()
             self.parser.parse_file(file_path)  # Parse the WND file
             windows = self.parser.get_windows()  # Retrieve the list of windows (objects)
@@ -299,9 +305,10 @@ class MainWindow(QMainWindow):
         if folder:
             self.log_manager.log(f"Logged info: Folder selected: {folder}", level="INFO")
             self.file_tree.set_root_path(folder)
-            self.selected_file = None  # Reset the selected file when a folder is selected
+            self.selected_file = folder  # Reset the selected file when a folder is selected
             self.selected_object = None  # Reset the selected object as well
-            self.property_editor.property_model.clear()
+            self.property_editor.clear()
+            self.object_tree.clear()
             self.update_status_bar()  # Update status bar
 
     def handle_exception(self, exc_type, exc_value, exc_tb):

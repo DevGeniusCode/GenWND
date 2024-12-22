@@ -87,18 +87,18 @@ parser = {
                     # rest of extra_properties
                 }
             },
-            'CHILDREN': [
+            'children': [
                 {
                     'window_key': 'uuid2',
                     'properties': {'OPTION': 'value'},
-                    'Children': []
+                    'children': []
                 }
             ]
         },
         {
             'window_key': 'uuid3',
             'properties': {'OPTION': 'value'},
-            'Children': []
+            'children': []
         }
     ]
 }

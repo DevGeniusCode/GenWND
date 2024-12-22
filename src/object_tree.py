@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QTreeView
+from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PyQt6.QtCore import Qt
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSignal
 
 
 class ObjectTree(QTreeView):
@@ -17,8 +17,24 @@ class ObjectTree(QTreeView):
         # Set up signal for item selection
         self.selectionModel().selectionChanged.connect(self.on_item_selected)
 
+        # Create a label to display when there's no content or error
+        self.empty_label = QLabel("Select a file to display its Windows.", self)
+        self.empty_label.setObjectName("emptyLabel")  # Set the class name for QSS styling
+        self.empty_label.setWordWrap(True)
+        self.empty_label.setStyleSheet(f"qproperty-alignment: {int(Qt.AlignmentFlag.AlignCenter)};")
+
+        # Make a layout to hold the tree view and the empty label
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.empty_label)
+        self.layout.addWidget(self)
+
     def load_objects(self, windows):
         """Load the windows into the tree view."""
+        if not windows:
+            return  # Do not proceed if no windows are passed
+
+        # Hide the empty label if there are windows
+        self.empty_label.setVisible(False)
         self.model.clear()
         self._populate_tree(windows, self.model)
 
@@ -53,6 +69,7 @@ class ObjectTree(QTreeView):
         """
         # Clear the model to ensure no old data is left
         self.model.clear()
+        self.empty_label.setVisible(False)
 
         # Create an error item to show in the tree
         error_item = QStandardItem("Error")
@@ -69,3 +86,7 @@ class ObjectTree(QTreeView):
 
         # Optionally expand the error item so it's visible
         self.expandAll()
+
+    def clear(self):
+        self.model.clear()
+        self.empty_label.setVisible(True)

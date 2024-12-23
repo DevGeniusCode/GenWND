@@ -25,10 +25,11 @@ class Window:
 
 
 class WindowProperties:
-    def __init__(self, window_type, screen_rect, name, status, style,
+    def __init__(self, file_name, window_type, screen_rect, name, status, style,
                  system_callback, input_callback, tooltip_callback, draw_callback,
                  font, header_template, tooltip_text, tooltip_delay, text, text_color, enabled_draw_data,
                  disabled_draw_data, hilited_draw_data, extra_properties):
+        self.file_name = file_name
         self.WINDOWTYPE = window_type
         self.SCREENRECT = screen_rect
         self.NAME = name
@@ -49,15 +50,34 @@ class WindowProperties:
         self._HILITEDRAWDATA = hilited_draw_data
         self.extra_properties = extra_properties
 
+    def __contains__(self, key):
+        """
+        Enables the use of `in` to check if a key exists as an attribute in the WindowProperties instance.
+        """
+        return hasattr(self, key)
+
+    # def __setitem__(self, key, value):
+    #     if key not in self:
+    #         raise KeyError(f"Key '{key}' not found in WindowProperties attributes.")
+    #
+    #     setattr(self, key, value)
+    #
+    # def __getitem__(self, key):
+    #     """
+    #     Retrieves the value of the specified attribute,
+    #     allowing for access using the subscript operator (`[]`).
+    #     """
+    #     if hasattr(self, key):
+    #         return getattr(self, key)
+    #     else:
+    #         raise KeyError(f"Key '{key}' not found in WindowProperties attributes.")
+
     def get(self, key, default=None):
         """
         Retrieve a value by key, returning default if the key does not exist.
         If the key is 'name' and the value contains a colon (":"), return the part after the colon.
         """
-        value = getattr(self, key, default)
-        if key == 'name' and isinstance(value, str) and ":" in value:
-            return value.split(":")[-1]
-        return value
+        return getattr(self, key, default)
 
     @property
     def FONT(self):
@@ -98,8 +118,8 @@ class WindowProperties:
 
     @SCREENRECT.setter
     def SCREENRECT(self, value):
-        upper_left, bottom_right = value["upper_left"], value["bottom_right"]
-        creation_resolution = value["creation_resolution"]  # New addition to handle the resolution
+        upper_left, bottom_right = value["UPPERLEFT"], value["BOTTOMRIGHT"]
+        creation_resolution = value["CREATIONRESOLUTION"]  # New addition to handle the resolution
 
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
@@ -207,9 +227,9 @@ class WindowProperties:
         """
         screen_rect = self.SCREENRECT
         return (
-            f"SCREENRECT = UPPERLEFT: {screen_rect['upper_left'][0]} {screen_rect['upper_left'][1]},\n"
-            f"             BOTTOMRIGHT: {screen_rect['bottom_right'][0]} {screen_rect['bottom_right'][1]},\n"
-            f"             CREATIONRESOLUTION: {screen_rect['creation_resolution'][0]} {screen_rect['creation_resolution'][1]};"
+            f"SCREENRECT = UPPERLEFT: {screen_rect['UPPERLEFT'][0]} {screen_rect['UPPERLEFT'][1]},\n"
+            f"             BOTTOMRIGHT: {screen_rect['BOTTOMRIGHT'][0]} {screen_rect['BOTTOMRIGHT'][1]},\n"
+            f"             CREATIONRESOLUTION: {screen_rect['CREATIONRESOLUTION'][0]} {screen_rect['CREATIONRESOLUTION'][1]};"
         )
 
     def _format_font(self):
@@ -341,7 +361,7 @@ class WindowProperties:
 
         output.append(f"WINDOWTYPE = {self.WINDOWTYPE};")
         output.append(self._format_screenrect())
-        output.append(f'NAME = "{self.NAME}";')
+        output.append(f'NAME = "{self.file_name}:{self.NAME}";')
         output.append(f"STATUS = {'+'.join(self.STATUS)};")
         output.append(f"STYLE = {'+'.join(self.STYLE)};")
         output.append(f'SYSTEMCALLBACK = "{self.SYSTEMCALLBACK}";')
@@ -390,9 +410,9 @@ def parse_screenrect(lines_iter):
                     creation_res_y = int(match.group(6))
 
                     return {
-                        "upper_left": (upper_left_x, upper_left_y),
-                        "bottom_right": (bottom_right_x, bottom_right_y),
-                        "creation_resolution": (creation_res_x, creation_res_y),
+                        "UPPERLEFT": (upper_left_x, upper_left_y),
+                        "BOTTOMRIGHT": (bottom_right_x, bottom_right_y),
+                        "CREATIONRESOLUTION": (creation_res_x, creation_res_y),
                     }
                 else:
                     raise ValueError("Invalid SCREENRECT format")
@@ -527,6 +547,7 @@ def parse_extra_properties(lines_iter):
 # Function to parse the window properties and return a WindowProperties object
 def parse_window_properties(lines_iter):
     # Initialize variables to store parsed data
+    file_name=""
     line_start = lines_iter.line_number
     window_type = ""
     screen_rect = {}
@@ -590,7 +611,10 @@ def parse_window_properties(lines_iter):
                     screen_rect = parse_screenrect(lines_iter)
 
                 case "NAME":
-                    name = line.split("=")[1].strip().strip('"')
+                    file_name = line.split("=")[1].strip().strip('"').split(":")[0]
+                    if file_name == "":
+                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, f"file name is missing in name", error_level=2)
+                    name = line.split("=")[1].strip().strip('"').split(":")[-1]
 
                 # Handle multiple STATUS values (e.g., ENABLED+IMAGE)
                 case "STATUS":
@@ -667,6 +691,7 @@ def parse_window_properties(lines_iter):
     # Return the WindowProperties object with the parsed data
     try:
         return WindowProperties(
+            file_name=file_name,
             window_type=window_type,
             screen_rect=screen_rect,
             name=name,

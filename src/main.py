@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QMenuBar, \
-    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox
+    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox, QStackedWidget
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 import os
@@ -9,6 +9,8 @@ import traceback
 from object_tree import ObjectTree
 from file_tree import FileTree
 from property_editor import PropertyEditor
+from src.environment_manager import EnvironmentManager
+from src.setting import SettingsWidget
 from src.window.wnd_parser import WndParser
 from log_manager import LogManager
 
@@ -17,6 +19,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("WND Editor")
         self.resize(1200, 800)
+        self.default_directory = EnvironmentManager('resources/user_config.json').get('default_directory') or os.path.expanduser("~/Documents")
 
         # Initialize logging
         self.log_manager = LogManager()
@@ -36,9 +39,18 @@ class MainWindow(QMainWindow):
         save_as_action = QAction("Save As", self)
         add_file_action = QAction("Add File", self)
         add_folder_action = QAction("Add Folder", self)
+        settings_action = QAction("Settings", self)
+        settings_action.triggered.connect(self.open_settings)
         file_menu.addActions([open_file_action, open_folder_action, save_action, add_file_action, add_folder_action])
         file_menu.addAction(save_action)
         file_menu.addAction(save_as_action)
+        file_menu.addAction(settings_action)
+
+        # Create a stacked widget to hold different widgets
+        self.settings_widget = SettingsWidget()
+
+
+        self.is_modified = False
 
         # Connect menu actions
         add_file_action.triggered.connect(self.add_file_menu)
@@ -58,6 +70,7 @@ class MainWindow(QMainWindow):
         # File Tree
         self.file_tree = FileTree(self, main_window=self)  # Pass the reference of MainWindow here
         self.file_tree.setMinimumWidth(250)
+        self.file_tree.set_root_path(self.default_directory)
 
         # Label for displaying root path at the bottom of the file tree
         self.root_path_label = QLabel()
@@ -253,15 +266,17 @@ class MainWindow(QMainWindow):
 
     def open_file(self):
         """Handle opening a file"""
-        file, _ = QFileDialog.getOpenFileName(self, "Open File", "", "WND Files (*.wnd);;All Files (*)")
+        file, _ = QFileDialog.getOpenFileName(self, "Open File",  self.default_directory, "WND Files (*.wnd);;All Files (*)")
         if file:
             self.log_manager.log(f"Logged info: File selected: {file}", level="INFO")
             self.current_file = file
             self.selected_object = None
             self.property_editor.clear()
             self.object_tree.clear()
-            self.update_status_bar()  # Update status bar
+            self.update_status_bar()
             self.load_wnd_file(file)
+            self.default_directory = os.path.dirname(file)
+            EnvironmentManager('resources/user_config.json').set('default_directory', self.default_directory)
 
     def load_wnd_file(self, file_path):
         """Loads and parses the WND file, and displays the object tree."""
@@ -301,15 +316,17 @@ class MainWindow(QMainWindow):
 
     def open_folder(self):
         """Handle opening a folder"""
-        folder = QFileDialog.getExistingDirectory(self, "Open Folder")
+        folder = QFileDialog.getExistingDirectory(self, "Open Folder", self.default_directory)
         if folder:
             self.log_manager.log(f"Logged info: Folder selected: {folder}", level="INFO")
             self.file_tree.set_root_path(folder)
-            self.selected_file = folder  # Reset the selected file when a folder is selected
-            self.selected_object = None  # Reset the selected object as well
+            self.selected_file = folder
+            self.selected_object = None
             self.property_editor.clear()
             self.object_tree.clear()
-            self.update_status_bar()  # Update status bar
+            self.update_status_bar()
+            self.default_directory = folder
+            EnvironmentManager('resources/user_config.json').set('default_directory', folder)
 
     def handle_exception(self, exc_type, exc_value, exc_tb):
         """Handle uncaught exceptions globally"""
@@ -336,6 +353,9 @@ class MainWindow(QMainWindow):
                 self.load_wnd_file(f)
             else:
                 self.log_manager.log(f"Invalid file type dropped: {f}", level="WARNING")
+    def open_settings(self):
+        """Open the settings widget in the center"""
+        self.settings_widget.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

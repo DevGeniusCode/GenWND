@@ -1,9 +1,10 @@
-from PyQt6.QtWidgets import QTabWidget, QTextEdit, QTableView, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton
-from PyQt6.QtGui import QStandardItemModel, QStandardItem
+from PyQt6.QtWidgets import QTabWidget, QTextEdit, QTableView, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton, \
+    QFormLayout
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PyQt6.QtCore import Qt
 
 from src.window.line_iterator import LineIterator
-from src.window.window_properties import parse_window_properties
+from src.window.window_properties import parse_window_properties, Window
 from src.properties.general_properties import GeneralForm
 
 class PropertyEditor(QWidget):
@@ -21,6 +22,7 @@ class PropertyEditor(QWidget):
 
         # Initialize general and raw tabs
         self.create_general_tab()
+        self.create_control_tab()
         self.create_raw_tab()
 
         # Create a label to display when there's no content or error
@@ -45,9 +47,17 @@ class PropertyEditor(QWidget):
         """Creates the General tab and its components."""
         self.general_tab = QWidget()
         self.general_properties = GeneralForm(self, self.properties)
-        general_layout = QVBoxLayout(self.general_tab)  # Layout for the general tab
+        general_layout = QVBoxLayout(self.general_tab)
         general_layout.addWidget(self.general_properties)
         self.tabs.addTab(self.general_tab, "General Properties")
+
+    def create_control_tab(self):
+        """Creates the Control tab and its components."""
+        self.control_tab = QWidget()
+        self.control_properties = QWidget()
+        general_layout = QVBoxLayout(self.control_tab)
+        general_layout.addWidget(self.control_properties)
+        self.tabs.addTab(self.control_tab, "Control Properties")
 
     def create_raw_tab(self):
         """Creates the Raw tab and its components."""
@@ -107,6 +117,7 @@ class PropertyEditor(QWidget):
         # General tab
         # Populate the general_properties fields with the property values
         self.general_properties.general_data = self.properties
+        self.general_properties.type = self.properties.get('WINDOWTYPE', 'USER')
 
         # Set NAME value
         self.general_properties.name_entry.setText(self.properties.get('NAME', ''))
@@ -125,32 +136,78 @@ class PropertyEditor(QWidget):
         self.general_properties.bottom_right_x_spinbox.setValue(bottom_right[0])
         self.general_properties.bottom_right_y_spinbox.setValue(bottom_right[1])
 
-        # # Set STATUS values (checkboxes for each status)
-        # status_values = self.properties.get('STATUS', [])
-        # for idx, checkbox in enumerate(self.general_properties.status_checkboxes):
-        #     if idx < len(status_values):
-        #         checkbox.setChecked(status_values[idx] == 'ENABLED')
+        # Set STATUS values (checkboxes for each status)
+        status_values = self.properties.get('STATUS', [])
+
+        # Create a dictionary for the checkbox variables and corresponding status values
+        status_dict = {
+            self.general_properties.status_enable: "ENABLED",
+            self.general_properties.status_hidden: "HIDDEN",
+            self.general_properties.status_see_thru: "SEE_THRU",
+            self.general_properties.status_image: "IMAGE",
+            self.general_properties.status_border: "BORDER",
+            self.general_properties.status_no_input: "NOINPUT",
+            self.general_properties.status_no_focus: "NOFOCUS",
+            self.general_properties.status_draggable: "DRAGABLE",
+            self.general_properties.status_wrap_centered: "WRAP_CENTERED",
+            self.general_properties.status_on_mouse_down: "ON_MOUSE_DOWN",
+            self.general_properties.status_hotkey_text: "HOTKEY_TEXT",
+            self.general_properties.status_right_click: "RIGHT_CLICK",
+            self.general_properties.status_check_like: "CHECK_LIKE",
+            self.general_properties.status_tabstop: "TABSTOP"
+        }
+
+        # Iterate over the status_dict and check the checkboxes based on status_values
+        for checkbox, status_key in status_dict.items():
+            # If the status_key is in status_values, check the checkbox
+            if status_key in status_values:
+                checkbox.setChecked(True)
+            else:
+                checkbox.setChecked(False)
         #
-        # # Set STYLE values (checkboxes for each style)
-        # style_values = self.properties.get('STYLE', [])
-        # for idx, checkbox in enumerate(self.general_properties.style_checkboxes):
-        #     if idx < len(style_values):
-        #         checkbox.setChecked(style_values[idx] == 'SCROLLLISTBOX')
-        #
-        # # Set FONT values (NAME, SIZE, BOLD)
-        # font_data = self.properties.get('FONT', [])
-        # self.general_properties.font_name_entry.setText(font_data[0].get('NAME', ''))
-        # self.general_properties.font_size_spinbox.setValue(font_data[1].get('SIZE', 10))
-        # self.general_properties.bold_checkbox.setChecked(font_data[2].get('BOLD', 0) == 1)
-        #
-        # # Set TOOLTIP value
-        # self.general_properties.tooltip_delay_spinbox.setValue(self.properties.get('TOOLTIPDELAY', -1))
-        #
-        # # Set TEXTCOLOR values (color pickers for ENABLED, DISABLED, HILITE)
-        # text_color_data = self.properties.get('TEXTCOLOR', [])
-        # self.general_properties.text_color_tabs.set_color('enabled', text_color_data[0].get('ENABLED', [0, 0, 0, 0]))
-        # self.general_properties.text_color_tabs.set_color('disabled', text_color_data[2].get('DISABLED', [0, 0, 0, 0]))
-        # self.general_properties.text_color_tabs.set_color('highlight', text_color_data[4].get('HILITE', [0, 0, 0, 0]))
+        # Set FONT values (NAME, SIZE, BOLD) and TEMPLATE
+        font_data = self.properties.get('FONT', [])
+        font_name = font_data.get('name')
+        if font_name not in [self.general_properties.font_list.itemText(i) for i in
+                             range(self.general_properties.font_list.count())]:
+            self.general_properties.font_list.addItem(font_name)
+        self.general_properties.font_list.setCurrentText(font_name)
+        self.general_properties.bold_checkbox.setChecked(font_data['bold'] == 1)
+
+        template_name = self.properties.get('HEADERTEMPLATE', '')
+        if template_name not in [self.general_properties.template_list.itemText(i) for i in
+                             range(self.general_properties.template_list.count())]:
+            self.general_properties.template_list.addItem(template_name)
+        self.general_properties.template_list.setCurrentText(template_name)
+
+        # Set TEXT and TOOLTIP value
+        self.general_properties.text_entry.setText(self.properties.get('TEXT', ''))
+        self.general_properties.tooltip_entry.setText(self.properties.get('TOOLTIPTEXT', ''))
+
+        # Set TEXTCOLOR values, dict of tuples
+        text_color_data = self.properties.get('TEXTCOLOR', {})
+        enable_color = text_color_data.get('ENABLED', "#ff0000")
+        enable_shadow = text_color_data.get('ENABLEDBORDER', "#000000")
+        disable_color = text_color_data.get('DISABLED', "#00ff00")
+        disable_shadow = text_color_data.get('DISABLEDBORDER', "#000000")
+        highlight_color = text_color_data.get('HILITE', "#0000ff")
+        highlight_shadow = text_color_data.get('HILITEBORDER', "#000000")
+
+        # Now pass these values to the ColorPickerApp widget
+        self.general_properties.text_color_tabs.color_data['enable']['color'] = \
+            QColor(enable_color[0], enable_color[1], enable_color[2], enable_color[3])
+        self.general_properties.text_color_tabs.color_data['enable']['shadow'] = \
+            QColor(enable_shadow[0], enable_shadow[1], enable_shadow[2], enable_shadow[3])
+        self.general_properties.text_color_tabs.color_data['disable']['color'] = \
+            QColor(disable_color[0], disable_color[1], disable_color[2], disable_color[3])
+        self.general_properties.text_color_tabs.color_data['disable']['shadow'] = \
+            QColor(disable_shadow[0], disable_shadow[1], disable_shadow[2], disable_shadow[3])
+        self.general_properties.text_color_tabs.color_data['highlight']['color'] = \
+            QColor(highlight_color[0], highlight_color[1], highlight_color[2], highlight_color[3])
+        self.general_properties.text_color_tabs.color_data['highlight']['shadow'] = \
+            QColor(highlight_shadow[0], highlight_shadow[1], highlight_shadow[2], highlight_shadow[3])
+        self.general_properties.text_color_tabs.update_buttons_from_color_data()
+
 
     def display_error(self, error_message):
         """Displays an error message in the property editor."""

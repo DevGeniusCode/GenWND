@@ -17,17 +17,10 @@ class PropertyEditor(QWidget):
 
         # Create tabs
         self.tabs = QTabWidget(self)
-        self.text_tab = QWidget()
-        self.edit_tab = QTableView()
-        self.property_model = QStandardItemModel()
-        self.edit_tab.setModel(self.property_model)
 
-        # Set headers for the properties table
-        self.property_model.setHorizontalHeaderLabels(["Property", "Value"])
-
-        # Add tabs
-        self.tabs.addTab(self.edit_tab, "Edit")
-        self.tabs.addTab(self.text_tab, "Text")
+        # Initialize general and raw tabs
+        self.create_general_tab()
+        self.create_raw_tab()
 
         # Create a label to display when there's no content or error
         self.empty_label = QLabel("Select an object to display its properties.", self)
@@ -38,50 +31,61 @@ class PropertyEditor(QWidget):
         # Initially hide the tabs (when there's no content)
         self.tabs.setVisible(False)
 
-        # Layout for text tab
-        text_layout = QVBoxLayout()
-
-        # QTextEdit (text editing area)
-        self.text_edit = QTextEdit(self.text_tab)
-        self.text_edit.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        text_layout.addWidget(self.text_edit)
-
-        # Layout for buttons inside the text tab
-        self.buttons_layout = QHBoxLayout()
-
-        # Save and Reset buttons
-        self.save_button = QPushButton("Load", self.text_tab)
-        self.reset_button = QPushButton("Reset", self.text_tab)
-        self.error_label = QLabel("", self.text_tab)  # To display save error messages
-        self.error_label.setObjectName("errorLabel")  # Apply the error label style
-
-        # Connect buttons
-        self.save_button.clicked.connect(self.save_properties)
-        self.reset_button.clicked.connect(self.reset_text)
-
-        # Add buttons and error label to layout
-        self.buttons_layout.addWidget(self.save_button)
-        self.buttons_layout.addWidget(self.reset_button)
-
-        # Add buttons layout to the text tab layout
-        text_layout.addLayout(self.buttons_layout)
-
-        # Layout for error message, placed under the buttons
-        self.error_layout = QVBoxLayout()
-        self.error_layout.addWidget(self.error_label)  # Error label under buttons
-        text_layout.addLayout(self.error_layout)
-
-        # Set layout for text_tab
-        self.text_tab.setLayout(text_layout)
-
-        # Set the layout
+        # Set layout
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
         layout.addWidget(self.empty_label)
         self.setLayout(layout)
 
-        # Store the original text for reset functionality
-        self.original_text = ""
+        # Store the original raw for reset functionality
+        self.original_raw = ""
+
+    def create_general_tab(self):
+        """Creates the General tab and its components."""
+        self.general_tab = QTableView()
+        self.property_model = QStandardItemModel()
+        self.general_tab.setModel(self.property_model)
+        self.property_model.setHorizontalHeaderLabels(["Property", "Value"])
+        self.tabs.addTab(self.general_tab, "General Properties")
+
+    def create_raw_tab(self):
+        """Creates the Raw tab and its components."""
+        raw_layout = QVBoxLayout()
+        self.raw_tab = QWidget()
+        self.tabs.addTab(self.raw_tab, "Raw Text")
+
+        # QTextEdit (raw editing area)
+        self.raw_edit = QTextEdit(self.raw_tab)
+        self.raw_edit.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        raw_layout.addWidget(self.raw_edit)
+
+        # Layout for buttons inside the raw tab
+        self.buttons_layout = QHBoxLayout()
+
+        # Save and Reset buttons
+        self.save_button = QPushButton("Load", self.raw_tab)
+        self.reset_button = QPushButton("Reset", self.raw_tab)
+        self.error_label = QLabel("", self.raw_tab)  # To display save error messages
+        self.error_label.setObjectName("errorLabel")  # Apply the error label style
+
+        # Connect buttons
+        self.save_button.clicked.connect(self.save_properties)
+        self.reset_button.clicked.connect(self.reset_raw)
+
+        # Add buttons and error label to layout
+        self.buttons_layout.addWidget(self.save_button)
+        self.buttons_layout.addWidget(self.reset_button)
+
+        # Add buttons layout to the raw tab layout
+        raw_layout.addLayout(self.buttons_layout)
+
+        # Layout for error message, placed under the buttons
+        self.error_layout = QVBoxLayout()
+        self.error_layout.addWidget(self.error_label)  # Error label under buttons
+        raw_layout.addLayout(self.error_layout)
+
+        # Set layout for raw_tab
+        self.raw_tab.setLayout(raw_layout)
 
     def load_property(self, properties):
         """Loads the properties of a selected object into the editor."""
@@ -94,9 +98,9 @@ class PropertyEditor(QWidget):
         self.empty_label.setVisible(False)  # Hide the empty label if there are properties
         self.tabs.setVisible(True)
 
-        # Text tab
-        self.original_text = repr(properties)  # Store the original text
-        self.text_edit.setPlainText(self.original_text)
+        # Raw tab
+        self.original_raw = repr(properties)  # Store the original raw
+        self.raw_edit.setPlainText(self.original_raw)
 
         # Edit tab
         self.property_model.clear()
@@ -108,7 +112,7 @@ class PropertyEditor(QWidget):
 
     def display_error(self, error_message):
         """Displays an error message in the property editor."""
-        self.text_edit.setPlainText(f"Error: {error_message}")
+        self.raw_edit.setPlainText(f"Error: {error_message}")
         self.property_model.clear()
         self.tabs.setVisible(False)
         self.empty_label.setVisible(True)
@@ -119,18 +123,18 @@ class PropertyEditor(QWidget):
 
     def clear(self):
         """Clears all content in the editor."""
-        self.text_edit.clear()
+        self.raw_edit.clear()
         self.property_model.clear()
         self.tabs.setVisible(False)
         self.empty_label.setVisible(True)
         self.error_label.clear()  # Clear the error label text and styling
 
     def save_properties(self):
-        """Saves the current text into the properties object."""
-        text = self.text_edit.toPlainText()
+        """Saves the current raw into the properties object."""
+        raw = self.raw_edit.toPlainText()
 
         try:
-            window_properties = parse_window_properties(LineIterator(text.splitlines()))
+            window_properties = parse_window_properties(LineIterator(raw.splitlines()))
 
             # If no error occurs, update the properties
             self.error_label.setText("")
@@ -140,8 +144,8 @@ class PropertyEditor(QWidget):
         except Exception as e:
             self.error_label.setText(f"Save failed: {str(e)}")
 
-    def reset_text(self):
-        """Resets the text to its original state."""
-        self.text_edit.setPlainText(self.original_text)
+    def reset_raw(self):
+        """Resets the raw to its original state."""
+        self.raw_edit.setPlainText(self.original_raw)
         self.error_label.clear()
         self.error_label.setObjectName("")

@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import pyqtSignal

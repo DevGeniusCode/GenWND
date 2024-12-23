@@ -1,6 +1,5 @@
-from PyQt6.QtWidgets import QTabWidget, QTextEdit, QTableView, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton, \
-    QFormLayout
-from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor
+from PyQt6.QtWidgets import QTabWidget, QTextEdit, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 
 from src.window.line_iterator import LineIterator
@@ -19,8 +18,6 @@ class PropertyEditor(QWidget):
 
         # Create tabs
         self.tabs = QTabWidget(self)
-
-        # Initialize general and raw tabs
         self.create_general_tab()
         self.create_control_tab()
         self.create_raw_tab()
@@ -110,20 +107,26 @@ class PropertyEditor(QWidget):
         self.empty_label.setVisible(False)  # Hide the empty label if there are properties
         self.tabs.setVisible(True)
 
+        # Load the general properties
+        self.load_general_properties(properties)
+
+        # Load the raw properties
+        self.load_raw_properties(properties)
+
+    def load_general_properties(self, properties):
+        """Loads the general properties into the editor."""
         # Raw tab
-        self.original_raw = repr(self.properties)
-        self.raw_edit.setPlainText(self.original_raw)
+        self.original_raw = repr(properties)
 
         # General tab
-        # Populate the general_properties fields with the property values
-        self.general_properties.general_data = self.properties
-        self.general_properties.type = self.properties.get('WINDOWTYPE', 'USER')
+        self.general_properties.general_data = properties
+        self.general_properties.type = properties.get('WINDOWTYPE', 'USER')
 
         # Set NAME value
-        self.general_properties.name_entry.setText(self.properties.get('NAME', ''))
+        self.general_properties.name_entry.setText(properties.get('NAME', ''))
 
-        # Set SCREENRECT values (we expect it to be a list of dictionaries)
-        screen_rect = self.properties.get('SCREENRECT', [])
+        # Set SCREENRECT values
+        screen_rect = properties.get('SCREENRECT', [])
 
         creation_resolution = screen_rect.get('CREATIONRESOLUTION', [800, 600])
         self.general_properties.update_resolution(creation_resolution[0], creation_resolution[1])
@@ -137,9 +140,7 @@ class PropertyEditor(QWidget):
         self.general_properties.bottom_right_y_spinbox.setValue(bottom_right[1])
 
         # Set STATUS values (checkboxes for each status)
-        status_values = self.properties.get('STATUS', [])
-
-        # Create a dictionary for the checkbox variables and corresponding status values
+        status_values = properties.get('STATUS', [])
         status_dict = {
             self.general_properties.status_enable: "ENABLED",
             self.general_properties.status_hidden: "HIDDEN",
@@ -159,33 +160,30 @@ class PropertyEditor(QWidget):
 
         # Iterate over the status_dict and check the checkboxes based on status_values
         for checkbox, status_key in status_dict.items():
-            # If the status_key is in status_values, check the checkbox
             if status_key in status_values:
                 checkbox.setChecked(True)
             else:
                 checkbox.setChecked(False)
-        #
-        # Set FONT values (NAME, SIZE, BOLD) and TEMPLATE
-        font_data = self.properties.get('FONT', [])
+
+        # Set FONT values and TEMPLATE
+        font_data = properties.get('FONT', [])
         font_name = font_data.get('name')
-        if font_name not in [self.general_properties.font_list.itemText(i) for i in
-                             range(self.general_properties.font_list.count())]:
+        if font_name not in [self.general_properties.font_list.itemText(i) for i in range(self.general_properties.font_list.count())]:
             self.general_properties.font_list.addItem(font_name)
         self.general_properties.font_list.setCurrentText(font_name)
         self.general_properties.bold_checkbox.setChecked(font_data['bold'] == 1)
 
-        template_name = self.properties.get('HEADERTEMPLATE', '')
-        if template_name not in [self.general_properties.template_list.itemText(i) for i in
-                             range(self.general_properties.template_list.count())]:
+        template_name = properties.get('HEADERTEMPLATE', '')
+        if template_name not in [self.general_properties.template_list.itemText(i) for i in range(self.general_properties.template_list.count())]:
             self.general_properties.template_list.addItem(template_name)
         self.general_properties.template_list.setCurrentText(template_name)
 
         # Set TEXT and TOOLTIP value
-        self.general_properties.text_entry.setText(self.properties.get('TEXT', ''))
-        self.general_properties.tooltip_entry.setText(self.properties.get('TOOLTIPTEXT', ''))
+        self.general_properties.text_entry.setText(properties.get('TEXT', ''))
+        self.general_properties.tooltip_entry.setText(properties.get('TOOLTIPTEXT', ''))
 
-        # Set TEXTCOLOR values, dict of tuples
-        text_color_data = self.properties.get('TEXTCOLOR', {})
+        # Set TEXTCOLOR values
+        text_color_data = properties.get('TEXTCOLOR', {})
         enable_color = text_color_data.get('ENABLED', "#ff0000")
         enable_shadow = text_color_data.get('ENABLEDBORDER', "#000000")
         disable_color = text_color_data.get('DISABLED', "#00ff00")
@@ -208,11 +206,14 @@ class PropertyEditor(QWidget):
             QColor(highlight_shadow[0], highlight_shadow[1], highlight_shadow[2], highlight_shadow[3])
         self.general_properties.text_color_tabs.update_buttons_from_color_data()
 
+    def load_raw_properties(self, properties):
+        """Loads the raw properties into the raw editor."""
+        self.original_raw = repr(properties)
+        self.raw_edit.setPlainText(self.original_raw)
 
     def display_error(self, error_message):
         """Displays an error message in the property editor."""
         self.raw_edit.setPlainText(f"Error: {error_message}")
-        # self.property_model.clear()
         self.tabs.setVisible(False)
         self.empty_label.setVisible(True)
         self.empty_label.setText(f"Error: {error_message}")
@@ -223,7 +224,6 @@ class PropertyEditor(QWidget):
     def clear(self):
         """Clears all content in the editor."""
         self.raw_edit.clear()
-        # self.property_model.clear()
         self.tabs.setVisible(False)
         self.empty_label.setVisible(True)
         self.error_label.clear()  # Clear the error label text and styling

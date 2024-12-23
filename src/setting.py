@@ -1,6 +1,5 @@
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QComboBox, QPushButton, QFileDialog
-import json
 
 from src.environment_manager import EnvironmentManager
 

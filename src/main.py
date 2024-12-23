@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QMenuBar, \
-    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox, QStackedWidget
+    QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 import os

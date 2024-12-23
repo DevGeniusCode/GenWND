@@ -29,7 +29,6 @@ class FileTree(QTreeView):
 
         # Set the model to the tree view
         self.setModel(self.model)
-         # TODO
         # Add the root directory for browsing (initially set to the current directory)
         self.set_root_path(QDir.currentPath())
 
@@ -116,8 +115,9 @@ class FileTree(QTreeView):
         """Handle the double click on a file to load the WND file"""
         if index.isValid():
             file_path = self.model.filePath(index)
-            if file_path.endswith(".wnd"):
-                # Double click should allow renaming only, not loading the file
+            if os.path.isdir(file_path):
+                self.setExpanded(index, not self.isExpanded(index))
+            elif file_path.endswith(".wnd"):
                 self.edit(index)
 
     def handle_single_click(self, index):
@@ -360,23 +360,22 @@ class FileNameDelegate(QItemDelegate):
         """
         Prevent changing the file extension during renaming.
 
-        Ensure that the extension is always .wnd, even if the user omits it.
+        Ensure that the extension is always .wnd, but only if it's a file (not a directory).
         """
         file_path = index.model().filePath(index)
-        base_name = os.path.splitext(file_path)[0]  # Get the file name without the extension
+        base_name = os.path.splitext(file_path)[0]
         new_name = editor.text()
 
-        # Ensure the new name ends with '.wnd' (if not already)
-        if not new_name.endswith(".wnd"):
-            new_name = new_name + ".wnd"  # Add the '.wnd' extension if it doesn't already exist
+        if os.path.isfile(file_path):
+            if not new_name.lower().endswith(".wnd"):
+                new_name = new_name + ".wnd"
 
-        # Now we need to rename the file (on the file system)
         old_file_path = file_path
         new_file_path = os.path.join(os.path.dirname(old_file_path), new_name)
 
         try:
-            os.rename(old_file_path, new_file_path)  # Rename the file
-            model.setData(index, new_name)  # Update the model with the new name
-            model.layoutChanged.emit()  # Refresh the view
+            os.rename(old_file_path, new_file_path)
+            model.setData(index, new_name)
+            model.layoutChanged.emit()
         except Exception as e:
             print(f"Error renaming file: {e}")

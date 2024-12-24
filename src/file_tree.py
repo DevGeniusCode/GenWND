@@ -113,6 +113,20 @@ class FileTree(QTreeView):
 
     def handle_double_click(self, index):
         """Handle the double click on a file to load the WND file"""
+        if self.main_window and self.main_window.is_modified:
+            reply = QMessageBox.question(
+                self,
+                "Save Changes?",
+                "There are unsaved changes. Do you want to save them?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes
+            )
+
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+
+            if reply == QMessageBox.StandardButton.Yes:
+                self.main_window.save_file()
         if index.isValid():
             file_path = self.model.filePath(index)
             if os.path.isdir(file_path):
@@ -126,14 +140,11 @@ class FileTree(QTreeView):
             file_path = self.model.filePath(index)
             if file_path.endswith(".wnd"):
                 if self.main_window:
-                    self.main_window.load_wnd_file(file_path)
                     # Emit signal with the selected file path
                     self.file_selected_signal.emit(file_path)
 
             elif os.path.isdir(file_path):
                 if self.main_window:
-                    # Reset file and object selection when a folder is selected
-                    self.main_window.select_folder(file_path)
                     # Emit signal with the selected folder path
                     self.folder_selected_signal.emit(file_path)
 

@@ -48,8 +48,6 @@ class MainWindow(QMainWindow):
 
         # Create a stacked widget to hold different widgets
         self.settings_widget = SettingsWidget()
-
-
         self.is_modified = False
 
         # Connect menu actions
@@ -87,8 +85,8 @@ class MainWindow(QMainWindow):
         file_tree_widget.setLayout(file_tree_layout)
 
         # Objects Tree (where wnd file will be choice)
-        self.object_tree = ObjectTree(self)
-        self.object_tree.setHeaderHidden(True)
+        self.object_tree = ObjectTree(self, main_window=self)
+        self.object_tree.tree_view.setHeaderHidden(True)
         self.object_tree.setMinimumWidth(300)
 
         # Connect the object selected signal to the update function
@@ -149,9 +147,27 @@ class MainWindow(QMainWindow):
             self.log_manager.log(f"Object selected: {window_object.properties.get('WINDOWTYPE')} - {window_object.properties.get('NAME', 'Unnamed')}", level="INFO")
 
     def select_file(self, file_path):
+        """Handles selection of a file from the file tree."""
+        if self.is_modified:
+            reply = QMessageBox.question(self, 'Unsaved Changes',
+                                         "You have unsaved aaaaaaaaaaaaaaaaachanges. Do you want to save before selecting a new file?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.save_file()
+                self._select_file(file_path)
+            elif reply == QMessageBox.StandardButton.No:
+                self._select_file(file_path)
+            else:
+                return
+        else:
+            self._select_file(file_path)
+
+    def _select_file(self, file_path):
         """Handles selection of a file from the file tree"""
+        self.object_tree.clear()
         self.selected_file = file_path
         self.selected_object = None  # disable to display error in status bar
+        self.load_wnd_file(file_path)
         self.update_status_bar()
 
         # Log the selected file
@@ -174,6 +190,7 @@ class MainWindow(QMainWindow):
                 # Save the current WND data to the selected file
                 with open(self.selected_file, 'w') as file:
                     file.write(str(self.parser))  # Using __repr__ method of WndParser to get the file content
+                self.update_modified_state(False)
                 self.log_manager.log(f"File saved: {self.selected_file}", level="INFO")
             except Exception as e:
                 self.log_manager.log(f"Error saving file: {e}", level="ERROR")
@@ -191,7 +208,8 @@ class MainWindow(QMainWindow):
                     # Save the WND data to the chosen file path
                     with open(file, 'w') as f:
                         f.write(str(self.parser))  # Using __repr__ method of WndParser to get the file content
-                    self.selected_file = file  # Update the selected file path
+                    self.selected_file = file
+                    self.update_modified_state(False)
                     self.log_manager.log(f"File saved as: {file}", level="INFO")
                 except Exception as e:
                     self.log_manager.log(f"Error saving file as: {e}", level="ERROR")
@@ -265,6 +283,23 @@ class MainWindow(QMainWindow):
         self.property_editor.setVisible(not self.property_editor.isVisible())
 
     def open_file(self):
+        """Handle opening a file."""
+        if self.is_modified:
+            reply = QMessageBox.question(self, 'Unsaved Changes',
+                                         "You have unsaved changes. Do you want to save before opening a new file?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.save_file()
+                self._open_file()
+            elif reply == QMessageBox.StandardButton.No:
+                self._open_file()
+            else:
+                return
+        else:
+            self._open_file()
+
+
+    def _open_file(self):
         """Handle opening a file"""
         file, _ = QFileDialog.getOpenFileName(self, "Open File",  self.default_directory, "WND Files (*.wnd);;All Files (*)")
         if file:
@@ -292,6 +327,7 @@ class MainWindow(QMainWindow):
             self.object_tree.load_objects(windows)
 
             self.log_manager.log(f"Loaded objects from file {file_path}", level="INFO")
+            self.update_modified_state(False)
 
         except ValueError as e:
             error_message = f"Error loading file: {e}"
@@ -356,6 +392,26 @@ class MainWindow(QMainWindow):
     def open_settings(self):
         """Open the settings widget in the center"""
         self.settings_widget.show()
+
+    def closeEvent(self, event):
+        """Handle the close event and warn if the file has been modified."""
+        if self.is_modified:
+            reply = QMessageBox.question(self, 'Unsaved Changes',
+                                         "You have unsaved changes. Do you want to save before closing?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.save_file()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.No:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
+
+    def update_modified_state(self, modified):
+        self.is_modified = modified
+        self.object_tree.update_buttons_state()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

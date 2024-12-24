@@ -5,13 +5,12 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtGui import QColor
 from src.properties.text_color import ColorPickerApp
-from src.window.window_properties import WindowProperties
-
 
 class GeneralForm(QWidget):
-    def __init__(self, parent=None, general_data=None):
+    def __init__(self, parent=None, main_window=None, general_data=None):
         super().__init__(parent)
         self.general_data = general_data
+        self.main_window = main_window
 
         # Form layout for Edit tab
         formLayout = QVBoxLayout(self)
@@ -50,13 +49,13 @@ class GeneralForm(QWidget):
         self.bottom_right_y_spinbox.setMaximum(self.creation_resolution_height)
 
         self.upper_left_x_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', [value, self.upper_left_y_spinbox.value()]))
+            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', (value, self.upper_left_y_spinbox.value())))
         self.upper_left_y_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', [self.upper_left_x_spinbox.value(), value]))
+            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', (self.upper_left_x_spinbox.value(), value)))
         self.bottom_right_x_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', [value, self.bottom_right_y_spinbox.value()]))
+            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', (value, self.bottom_right_y_spinbox.value())))
         self.bottom_right_y_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', [self.bottom_right_x_spinbox.value(), value]))
+            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', (self.bottom_right_x_spinbox.value(), value)))
 
         position_layout.addWidget(self.upper_left_label, 0, 0)
         position_layout.addWidget(self.upper_left_x_label, 0, 1)
@@ -132,6 +131,21 @@ class GeneralForm(QWidget):
         self.status_group.setLayout(status_layout)
         formLayout.addWidget(self.status_group)
 
+        self.status_enable.toggled.connect(self.update_statuses)
+        self.status_hidden.toggled.connect(self.update_statuses)
+        self.status_see_thru.toggled.connect(self.update_statuses)
+        self.status_image.toggled.connect(self.update_statuses)
+        self.status_border.toggled.connect(self.update_statuses)
+        self.status_no_input.toggled.connect(self.update_statuses)
+        self.status_no_focus.toggled.connect(self.update_statuses)
+        self.status_draggable.toggled.connect(self.update_statuses)
+        self.status_wrap_centered.toggled.connect(self.update_statuses)
+        self.status_on_mouse_down.toggled.connect(self.update_statuses)
+        self.status_hotkey_text.toggled.connect(self.update_statuses)
+        self.status_right_click.toggled.connect(self.update_statuses)
+        self.status_check_like.toggled.connect(self.update_statuses)
+        self.status_tabstop.toggled.connect(self.update_statuses)
+
         # # Style Group
         # self.style_group = QGroupBox("Style", self)
         # style_layout = QVBoxLayout(self.style_group)
@@ -204,7 +218,7 @@ class GeneralForm(QWidget):
         self.template_list.setCurrentText(template_list_items[0])
 
         self.bold_checkbox.toggled.connect(lambda: self.update_sub_property('FONT','name', self.font_list.currentText()))
-        self.font_list.currentTextChanged.connect(lambda: self.update_sub_property('FONT', 'bold', self.bold_checkbox.isChecked()))
+        self.font_list.currentTextChanged.connect(lambda: self.update_sub_property('FONT', 'bold', int(self.bold_checkbox.isChecked())))
         self.template_list.currentTextChanged.connect(lambda: self.update_key_property('HEADERTEMPLATE', self.template_list.currentText()))
 
         # Text Color GroupBox with Tabs for Enable, Disable, Highlight
@@ -264,10 +278,52 @@ class GeneralForm(QWidget):
         self.bottom_right_y_spinbox.setMaximum(self.creation_resolution_height)
 
     def update_key_property(self, main_key, value=None):
-        setattr(self.general_data, main_key, value)
+        old_value = getattr(self.general_data, main_key, None)
+        if old_value != value:
+            setattr(self.general_data, main_key, value)
+            self.main_window.update_modified_state(True)
 
     def update_sub_property(self, main_key, sub_key, value=None):
         attr = getattr(self.general_data, main_key)
         if isinstance(attr, dict):
             if sub_key in attr:
-                attr[sub_key] = value
+                old_value = attr[sub_key]
+                if old_value != value:
+                    attr[sub_key] = value
+                    self.main_window.update_modified_state(True)
+
+    def update_statuses(self):
+        active_flags = []
+
+        if self.status_enable.isChecked():
+            active_flags.append("ENABLED")
+        if self.status_hidden.isChecked():
+            active_flags.append("HIDDEN")
+        if self.status_see_thru.isChecked():
+            active_flags.append("SEE_THRU")
+        if self.status_image.isChecked():
+            active_flags.append("IMAGE")
+        if self.status_border.isChecked():
+            active_flags.append("BORDER")
+        if self.status_no_input.isChecked():
+            active_flags.append("NOINPUT")
+        if self.status_no_focus.isChecked():
+            active_flags.append("NOFOCUS")
+        if self.status_draggable.isChecked():
+            active_flags.append("DRAGABLE")
+        if self.status_wrap_centered.isChecked():
+            active_flags.append("WRAP_CENTERED")
+        if self.status_on_mouse_down.isChecked():
+            active_flags.append("ON_MOUSE_DOWN")
+        if self.status_hotkey_text.isChecked():
+            active_flags.append("HOTKEY_TEXT")
+        if self.status_right_click.isChecked():
+            active_flags.append("RIGHT_CLICK")
+        if self.status_check_like.isChecked():
+            active_flags.append("CHECK_LIKE")
+        if self.status_tabstop.isChecked():
+            active_flags.append("TABSTOP")
+
+        self.update_key_property("STATUS", active_flags)
+
+

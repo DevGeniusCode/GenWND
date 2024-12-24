@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QTabWidget, QTextEdit, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
+import copy
 
 from src.window.line_iterator import LineIterator
 from src.window.window_properties import parse_window_properties, Window
@@ -30,20 +31,20 @@ class PropertyEditor(QWidget):
 
         # Initially hide the tabs (when there's no content)
         self.tabs.setVisible(False)
+        self.tabs.currentChanged.connect(self.tab_changed)
+
 
         # Set layout
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
         layout.addWidget(self.empty_label)
         self.setLayout(layout)
-
-        # Store the original raw for reset functionality
-        self.original_raw = ""
+        self.original_properties = ''
 
     def create_general_tab(self):
         """Creates the General tab and its components."""
         self.general_tab = QWidget()
-        self.general_properties = GeneralForm(self, self.properties)
+        self.general_properties = GeneralForm(self, general_data=self.properties, main_window=self.main_window)
         general_layout = QVBoxLayout(self.general_tab)
         general_layout.addWidget(self.general_properties)
         self.tabs.addTab(self.general_tab, "General Properties")
@@ -78,7 +79,7 @@ class PropertyEditor(QWidget):
 
         # Connect buttons
         self.save_button.clicked.connect(self.save_raw_properties)
-        self.reset_button.clicked.connect(self.reset_raw)
+        self.reset_button.clicked.connect(self.reset)
 
         # Add buttons and error label to layout
         self.buttons_layout.addWidget(self.save_button)
@@ -96,6 +97,7 @@ class PropertyEditor(QWidget):
         self.raw_tab.setLayout(raw_layout)
 
     def load_property(self, properties):
+        status = self.main_window.is_modified
         """Loads the properties of a selected object into the editor."""
         self.clear()  # Clear any previous data
 
@@ -103,21 +105,24 @@ class PropertyEditor(QWidget):
             self.empty_label.setVisible(True)  # Show the empty label if no properties
             return
 
+        self.original_properties = copy.deepcopy(properties)
         self.properties = properties
-        self.empty_label.setVisible(False)  # Hide the empty label if there are properties
+        self.empty_label.setVisible(False)
         self.tabs.setVisible(True)
 
         # Load the general properties
-        self.load_general_properties(properties)
+        self.load_general_properties()
 
         # Load the raw properties
-        self.load_raw_properties(properties)
+        self.load_raw_properties()
 
-    def load_general_properties(self, properties):
+        self.main_window.is_modified = status
+
+    def load_general_properties(self, properties=None):
         """Loads the general properties into the editor."""
-        # Raw tab
-        self.original_raw = repr(properties)
 
+        if not properties:
+            properties = self.properties
         # General tab
         self.general_properties.general_data = properties
         self.general_properties.type = properties.get('WINDOWTYPE', 'USER')
@@ -206,10 +211,9 @@ class PropertyEditor(QWidget):
             QColor(highlight_shadow[0], highlight_shadow[1], highlight_shadow[2], highlight_shadow[3])
         self.general_properties.text_color_tabs.update_buttons_from_color_data()
 
-    def load_raw_properties(self, properties):
+    def load_raw_properties(self):
         """Loads the raw properties into the raw editor."""
-        self.original_raw = repr(properties)
-        self.raw_edit.setPlainText(self.original_raw)
+        self.raw_edit.setPlainText(repr(self.properties))
 
     def display_error(self, error_message):
         """Displays an error message in the property editor."""
@@ -233,19 +237,30 @@ class PropertyEditor(QWidget):
         raw = self.raw_edit.toPlainText()
 
         try:
-            window_properties = parse_window_properties(LineIterator(raw.splitlines()))
+            self.properties = parse_window_properties(LineIterator(raw.splitlines()))
 
             # If no error occurs, update the properties
             self.error_label.setText("")
-            self.main_window.selected_object.properties = window_properties
+            self.main_window.selected_object.properties = self.properties
+            self.load_general_properties()
+            self.main_window.update_modified_state(True)
             self.error_label.setText("Loaded successfully!")
             self.error_label.setStyleSheet("color: green;")
         except Exception as e:
             self.error_label.setStyleSheet("color: red;")
             self.error_label.setText(f"Save failed: {str(e)}")
 
-    def reset_raw(self):
+    def reset(self):
         """Resets the raw to its original state."""
-        self.raw_edit.setPlainText(self.original_raw)
+        self.main_window.selected_object.properties = copy.deepcopy(self.original_properties)
+        self.properties = self.main_window.selected_object.properties
+        self.load_raw_properties()
+        self.load_general_properties()
         self.error_label.clear()
         self.error_label.setObjectName("")
+        self.error_label.setText("Reset successfully!")
+        self.error_label.setStyleSheet("color: green;")
+
+    def tab_changed(self, index):
+        if index == 2:
+            self.load_raw_properties()

@@ -83,56 +83,36 @@ class ControlForm(QWidget):
         self.layout.addWidget(group_box)
 
     def create_textures_for_control(self, textures_attributes):
-        """Creates texture attributes controls dynamically based on texture data.
-        The textures_attributes appear as Collapsible Section in the control properties tab.
-        """
-        section_manager = SectionManager()  # Create a section manager
-        # header with line separator
+        outer_section_manager = SectionManager()  # Create a section manager for outer sections
+        inner_section_manager = SectionManager()  # Create a section manager for inner sections
         self.layout.addWidget(create_header_with_separator("Textures"))
 
         for texture_type, texture_data in textures_attributes.items():
             if texture_type.endswith("DRAWDATA"):
                 texture_type_name = texture_type[:-8]  # Remove 'DRAWDATA' suffix
-                section = CollapsibleSection(title=texture_type_name, parent=self, section_manager=section_manager)
+                section = CollapsibleSection(title=texture_type_name, parent=self,
+                                             section_manager=outer_section_manager)
                 for texture in texture_data:
-                    image_combobox = QComboBox(self)
-                    image_combobox.addItem(str(texture.get('image', 'No Image')))
+                    inner_section_title = texture.get('image', 'No Image')
+                    inner_section = create_inner_section(inner_section_title, section, inner_section_manager,
+                                                         "InnerSection")
 
                     color_picker_app = ColorPickerApp(
-                        color_data= {'texture_layout' : {
+                        color_data={'texture_layout': {
                             "color": QColor(texture.get('color')[0], texture.get('color')[1], texture.get('color')[2],
                                             texture.get('color')[3]),
                             "shadow": QColor(texture.get('border_color')[0], texture.get('border_color')[1],
                                              texture.get('border_color')[2], texture.get('border_color')[3])
                         }}
                     )
-                    image_layout = QHBoxLayout()
-                    image_layout.addWidget(QLabel("Image", self))
-                    image_layout.addWidget(image_combobox)
-                    image_widget = QWidget()
-                    image_widget.setLayout(image_layout)
-                    # Disable margins only on top and bottom, keep side margins as they were
-                    image_layout.layout().setContentsMargins(image_layout.layout().contentsMargins().left(), 0,
-                                                             image_layout.layout().contentsMargins().right(), 0)
-                    image_widget.layout().setContentsMargins(image_widget.layout().contentsMargins().left(), 0,
-                                                             image_widget.layout().contentsMargins().right(), 0)
 
-                    section.addWidget(image_widget)
-
-                    # colorLabel widget
                     color_label = color_picker_app.findChild(QLabel, "colorLabel")
                     color_label.setText("Color:")
                     shadow_label = color_picker_app.findChild(QLabel, "shadowLabel")
                     shadow_label.setText("Border Color:")
-                    section.addWidget(color_picker_app)
 
-                    # Add a separator line after the texture
-                    # only if there are more textures to display
-                    if texture != texture_data[-1]:
-                        separator = QFrame(self)
-                        separator.setFrameShape(QFrame.Shape.HLine)
-                        separator.setFrameShadow(QFrame.Shadow.Sunken)
-                        section.addWidget(separator)
+                    inner_section.addWidget(color_picker_app)
+                    section.addWidget(inner_section)
 
                 self.layout.addWidget(section)
 
@@ -249,3 +229,9 @@ def create_header_with_separator(title):
     container_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     return container_widget
+
+def create_inner_section(title, parent, section_manager, object_name):
+    section = CollapsibleSection(title, parent, section_manager=section_manager)
+    section.setObjectName(object_name)  # Set the object name for QSS styling
+    section.setStyleSheet("QFrame { border: none; }")  # Minimal styling
+    return section

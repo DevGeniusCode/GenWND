@@ -153,3 +153,8 @@ QFrame#TitleFrame {
 QFrame#TitleFrame:expanded {
     margin-bottom: 10px;
 }
+
+QFrame#InnerSection {
+    min-height: 10px;
+    margin: 0;
+}

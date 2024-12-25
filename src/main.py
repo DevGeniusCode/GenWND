@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
 
         # Property Editor (for object details)
         self.property_editor = PropertyEditor(self, main_window=self)
-        self.property_editor.setMinimumWidth(300)
+        # self.property_editor.setFixedWidth(330)
 
         # Toggle Buttons for object tree and property editor
         self.toggle_object_tree_button = QPushButton("Toggle Objects", self)

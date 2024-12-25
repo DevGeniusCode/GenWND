@@ -3,6 +3,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 import copy
 
+from src.properties.control_properties import ControlForm
 from src.window.line_iterator import LineIterator
 from src.window.window_properties import parse_window_properties, Window
 from src.properties.general_properties import GeneralForm
@@ -52,9 +53,9 @@ class PropertyEditor(QWidget):
     def create_control_tab(self):
         """Creates the Control tab and its components."""
         self.control_tab = QWidget()
-        self.control_properties = QWidget()
-        general_layout = QVBoxLayout(self.control_tab)
-        general_layout.addWidget(self.control_properties)
+        # self.control_properties = QWidget()
+        # control_layout = QVBoxLayout(self.control_tab)
+        # control_layout.addWidget(self.control_properties)
         self.tabs.addTab(self.control_tab, "Control Properties")
 
     def create_raw_tab(self):
@@ -97,8 +98,8 @@ class PropertyEditor(QWidget):
         self.raw_tab.setLayout(raw_layout)
 
     def load_property(self, properties):
-        status = self.main_window.is_modified
         """Loads the properties of a selected object into the editor."""
+        status = self.main_window.is_modified
         self.clear()  # Clear any previous data
 
         if not properties:
@@ -110,13 +111,23 @@ class PropertyEditor(QWidget):
         self.empty_label.setVisible(False)
         self.tabs.setVisible(True)
 
-        # Load the general properties
+        # Load the tabs
         self.load_general_properties()
-
-        # Load the raw properties
+        self.load_control_properties()
         self.load_raw_properties()
 
-        self.main_window.is_modified = status
+        self.main_window.update_modified_state(status)
+
+    def load_control_properties(self, properties=None):
+        """Loads the control properties into the editor."""
+        if not properties:
+            properties = self.properties
+
+        self.control_properties = ControlForm(self, control_attributes=properties)
+        self.control_tab.layout().addWidget(self.control_properties)
+
+        # self.control_properties.type = properties.get('WINDOWTYPE', 'No type')
+        # self.control_properties.type_label.setText(f"Type: {self.control_properties.type}")
 
     def load_general_properties(self, properties=None):
         """Loads the general properties into the editor."""
@@ -231,6 +242,16 @@ class PropertyEditor(QWidget):
         self.tabs.setVisible(False)
         self.empty_label.setVisible(True)
         self.error_label.clear()  # Clear the error label text and styling
+
+        # Ensure the control tab has a layout
+        if self.control_tab.layout() is None:
+            self.control_tab.setLayout(QVBoxLayout())
+
+        # Clear the layout of the control tab
+        for i in reversed(range(self.control_tab.layout().count())):
+            widget = self.control_tab.layout().itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
 
     def save_raw_properties(self):
         """Saves the current raw into the properties object."""

@@ -130,3 +130,26 @@ QLineEdit {
     border-radius: 5px;
     padding: 5px;
 }
+
+QFrame#TitleFrame {
+    background-color: #717171;
+    border: none;
+    border-radius: 5px;
+}
+
+QFrame#QGroupBox {
+    border: 1px solid #717171;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    margin-top: -1px;
+}
+
+QFrame#TitleFrame {
+    background-color: #717171;
+    border: none;
+    border-radius: 5px 5px 0 0;
+}
+
+QFrame#TitleFrame:expanded {
+    margin-bottom: 10px;
+}

@@ -123,6 +123,16 @@ class PropertyEditor(QWidget):
         if not properties:
             properties = self.properties
 
+        # Ensure the control tab has a layout
+        if self.control_tab.layout() is None:
+            self.control_tab.setLayout(QVBoxLayout())
+
+        # Clear the layout of the control tab
+        for i in reversed(range(self.control_tab.layout().count())):
+            widget = self.control_tab.layout().itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
+
         self.control_properties = ControlForm(self, control_attributes=properties)
         self.control_tab.layout().addWidget(self.control_properties)
 
@@ -243,16 +253,6 @@ class PropertyEditor(QWidget):
         self.empty_label.setVisible(True)
         self.error_label.clear()  # Clear the error label text and styling
 
-        # Ensure the control tab has a layout
-        if self.control_tab.layout() is None:
-            self.control_tab.setLayout(QVBoxLayout())
-
-        # Clear the layout of the control tab
-        for i in reversed(range(self.control_tab.layout().count())):
-            widget = self.control_tab.layout().itemAt(i).widget()
-            if widget is not None:
-                widget.setParent(None)
-
     def save_raw_properties(self):
         """Saves the current raw into the properties object."""
         raw = self.raw_edit.toPlainText()
@@ -277,6 +277,7 @@ class PropertyEditor(QWidget):
         self.properties = self.main_window.selected_object.properties
         self.load_raw_properties()
         self.load_general_properties()
+        self.load_control_properties()
         self.error_label.clear()
         self.error_label.setObjectName("")
         self.error_label.setText("Reset successfully!")
@@ -285,3 +286,5 @@ class PropertyEditor(QWidget):
     def tab_changed(self, index):
         if index == 2:
             self.load_raw_properties()
+        elif index == 1:
+            self.load_control_properties()

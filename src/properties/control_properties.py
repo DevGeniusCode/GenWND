@@ -42,7 +42,7 @@ class ControlForm(QWidget):
         }
 
         if control_type in control_creation_map:
-            control_creation_map[control_type](self.control_attributes.extra_properties)
+            control_creation_map[control_type](self.control_attributes)
         # else:
         #     raise ValueError(f"Unknown type: {control_type}")
 
@@ -66,16 +66,25 @@ class ControlForm(QWidget):
                 prop_combobox = QComboBox(self)
                 for item in value:
                     prop_combobox.addItem(str(item))
+                prop_combobox.currentTextChanged.connect(
+                    lambda text, p=prop: self.update_sub_property(f'{self.type}DATA', p, text)
+                )
                 attributes_grid.addWidget(prop_combobox, row, 1)
             elif isinstance(value, bool):
                 # If the property is a boolean, create a QCheckBox
                 prop_checkbox = QCheckBox(self)
                 prop_checkbox.setChecked(value)
+                prop_checkbox.toggled.connect(
+                    lambda checked, p=prop: self.update_sub_property(f'{self.type}DATA', p, int(checked))
+                )
                 attributes_grid.addWidget(prop_checkbox, row, 1)
             elif isinstance(value, int):
                 # If the property is an integer, create a QSpinBox
                 prop_spinbox = QSpinBox(self)
                 prop_spinbox.setValue(value)
+                prop_spinbox.valueChanged.connect(
+                    lambda val, p=prop: self.update_sub_property(f'{self.type}DATA', p, val)
+                )
                 attributes_grid.addWidget(prop_spinbox, row, 1)
             attributes_grid.addWidget(prop_label, row, 0)
             row += 1
@@ -83,9 +92,18 @@ class ControlForm(QWidget):
         self.layout.addWidget(group_box)
 
     def create_textures_for_control(self, textures_attributes):
-        outer_section_manager = SectionManager()  # Create a section manager for outer sections
-        inner_section_manager = SectionManager()  # Create a section manager for inner sections
+        outer_section_manager = SectionManager()
+        inner_section_manager = SectionManager()
         self.layout.addWidget(create_header_with_separator("Textures"))
+
+        def update_texture_color(texture_type, image, color_picker_app):
+            color = color_picker_app.color_data['texture_layout']['color']
+            border = color_picker_app.color_data['texture_layout']['shadow']
+
+            self.update_texture_property(texture_type, 'color', image, (
+                color.red(), color.green(), color.blue(), color.alpha()))
+            self.update_texture_property(texture_type, 'BORDERCOLOR', image, (
+                border.red(), border.green(), border.blue(), border.alpha()))
 
         for texture_type, texture_data in textures_attributes.items():
             if texture_type.endswith("DRAWDATA"):
@@ -101,8 +119,8 @@ class ControlForm(QWidget):
                         color_data={'texture_layout': {
                             "color": QColor(texture.get('color')[0], texture.get('color')[1], texture.get('color')[2],
                                             texture.get('color')[3]),
-                            "shadow": QColor(texture.get('border_color')[0], texture.get('border_color')[1],
-                                             texture.get('border_color')[2], texture.get('border_color')[3])
+                            "shadow": QColor(texture.get('BORDERCOLOR')[0], texture.get('BORDERCOLOR')[1],
+                                             texture.get('BORDERCOLOR')[2], texture.get('BORDERCOLOR')[3])
                         }}
                     )
 
@@ -111,19 +129,41 @@ class ControlForm(QWidget):
                     shadow_label = color_picker_app.findChild(QLabel, "shadowLabel")
                     shadow_label.setText("Border Color:")
 
+                    color_picker_app.color_data['texture_layout']['color_button'].clicked.connect(
+                        lambda _, t=texture_type, i=inner_section_title, c=color_picker_app: update_texture_color(t, i, c))
+                    color_picker_app.color_data['texture_layout']['shadow_button'].clicked.connect(
+                        lambda _, t=texture_type, i=inner_section_title, c=color_picker_app: update_texture_color(t, i, c))
+
                     inner_section.addWidget(color_picker_app)
                     section.addWidget(inner_section)
 
                 self.layout.addWidget(section)
 
+    def update_sub_property(self, main_key, sub_key, value=None):
+        list_dict = self.control_attributes.textures \
+            if main_key in self.control_attributes.textures \
+            else self.control_attributes.attributes
 
-    def create_combobox_attributes(self, extra_properties):
+        for d in list_dict[main_key]:
+            if sub_key in d and d[sub_key] != value:
+                d[sub_key] = value
+                # self.main_window.update_modified_state(True)
+
+    def update_texture_property(self, main_key, sub_key, image, value=None):
+        list_dict = self.control_attributes.textures
+
+        for d in list_dict[main_key]:
+            if 'image' in d and d['image'] == image and sub_key in d and d[sub_key] != value:
+                d[sub_key] = value
+                # self.main_window.update_modified_state(True)
+
+    def create_combobox_attributes(self, properties):
         def filter_empty_properties(properties_list):
             return [
                 prop for prop in properties_list if not (
                         'image' in prop and prop['image'] == 'NoImage'
-                        # or 'color' in prop and prop['color'] == (255, 255, 255, 0)
-                        # or 'border_color' in prop and prop['border_color'] == (255, 255, 255, 0)
+                        and 'color' in prop and prop['color'] == (255, 255, 255, 0)
+                        and 'BORDERCOLOR' in prop and prop['BORDERCOLOR'] == (255, 255, 255, 0)
                 )
             ]
 
@@ -150,21 +190,19 @@ class ControlForm(QWidget):
                         converted_data[key] = value
             return converted_data
 
-        enabled_data = filter_empty_properties(extra_properties.get('ENABLEDDRAWDATA', []))
-        disabled_data = filter_empty_properties(extra_properties.get('DISABLEDDRAWDATA', []))
-        hilite_data = filter_empty_properties(extra_properties.get('HILITEDRAWDATA', []))
-        combobox_data = convert_combobox_data(extra_properties.get('COMBOBOXDATA', []))
-        dropdown_button_enabled_data = filter_empty_properties(
-            extra_properties.get('COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA', []))
-        dropdown_button_disabled_data = filter_empty_properties(
-            extra_properties.get('COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA', []))
-        dropdown_button_hilite_data = filter_empty_properties(
-            extra_properties.get('COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA', []))
-        editbox_enabled_data = filter_empty_properties(extra_properties.get('COMBOBOXEDITBOXENABLEDDRAWDATA', []))
-        editbox_disabled_data = filter_empty_properties(extra_properties.get('COMBOBOXEDITBOXDISABLEDDRAWDATA', []))
-        editbox_hilite_data = filter_empty_properties(extra_properties.get('COMBOBOXEDITBOXHILITEDRAWDATA', []))
-
+        combobox_data = convert_combobox_data(properties.attributes['COMBOBOXDATA'])
         self.create_attributes_for_control(combobox_data)
+
+        enabled_data = filter_empty_properties(properties.textures['ENABLEDDRAWDATA'])
+        disabled_data = filter_empty_properties(properties.textures['DISABLEDDRAWDATA'])
+        hilite_data = filter_empty_properties(properties.textures['HILITEDRAWDATA'])
+        dropdown_button_enabled_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA'])
+        dropdown_button_disabled_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA'])
+        dropdown_button_hilite_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA'])
+        editbox_enabled_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXENABLEDDRAWDATA'])
+        editbox_disabled_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXDISABLEDDRAWDATA'])
+        editbox_hilite_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXHILITEDRAWDATA'])
+
 
         self.create_textures_for_control({
             'ENABLEDDRAWDATA': enabled_data,

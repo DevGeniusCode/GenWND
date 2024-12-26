@@ -1,4 +1,6 @@
 import re
+from email.policy import default
+
 from src.error_handler import ErrorHandler
 from src.window.line_iterator import LineIterator
 
@@ -27,8 +29,8 @@ class Window:
 class WindowProperties:
     def __init__(self, file_name, window_type, screen_rect, name, status, style,
                  system_callback, input_callback, tooltip_callback, draw_callback,
-                 font, header_template, tooltip_text, tooltip_delay, text, text_color, enabled_draw_data,
-                 disabled_draw_data, hilited_draw_data, extra_properties):
+                 font, header_template, tooltip_text, tooltip_delay, text, text_color,
+                 attributes, textures):
         self.file_name = file_name
         self.WINDOWTYPE = window_type
         self.SCREENRECT = screen_rect
@@ -45,10 +47,8 @@ class WindowProperties:
         self.TOOLTIPDELAY = tooltip_delay
         self.TEXT = text
         self.TEXTCOLOR = text_color
-        self._ENABLEDDRAWDATA = enabled_draw_data
-        self._DISABLEDDRAWDATA = disabled_draw_data
-        self._HILITEDRAWDATA = hilited_draw_data
-        self.extra_properties = extra_properties
+        self.attributes = attributes
+        self._textures = textures
 
     def __contains__(self, key):
         """
@@ -179,43 +179,24 @@ class WindowProperties:
             raise InvalidValuesError(f"Draw data must be a list with exactly 9 items, len: {len(draw_data)}")
 
         for entry in draw_data:
-            if "image" not in entry or "color" not in entry or "border_color" not in entry:
+            if "image" not in entry or "color" not in entry or "BORDERCOLOR" not in entry:
                 raise InvalidValuesError("Each draw data entry must contain IMAGE, COLOR, and BORDERCOLOR.")
             self._validate_image(entry["image"])
             self._validate_rgba(entry["color"])
-            self._validate_rgba(entry["border_color"])
+            self._validate_rgba(entry["BORDERCOLOR"])
 
     # Use internal variables for drawing data
 
-    # Setter for ENABLEDDRAWDATA
     @property
-    def enabled_draw_data(self):
-        return self._ENABLEDDRAWDATA
+    def textures(self):
+        return self._textures
 
-    @enabled_draw_data.setter
-    def enabled_draw_data(self, value):
-        self._validate_draw_data(value)
-        self._ENABLEDDRAWDATA = value
+    @textures.setter
+    def textures(self, value):
+        for key, draw_data in value.items():
+            self._validate_draw_data(draw_data)
+        self._textures = value
 
-    # Setter for DISABLEDDRAWDATA
-    @property
-    def disabled_draw_data(self):
-        return self._DISABLEDDRAWDATA
-
-    @disabled_draw_data.setter
-    def disabled_draw_data(self, value):
-        self._validate_draw_data(value)
-        self._DISABLEDDRAWDATA = value
-
-    # Setter for HILITEDRAWDATA
-    @property
-    def hilite_draw_data(self):
-        return self._HILITEDRAWDATA
-
-    @hilite_draw_data.setter
-    def hilite_draw_data(self, value):
-        self._validate_draw_data(value)
-        self._HILITEDRAWDATA = value
 
     def _format_screenrect(self):
         """
@@ -278,7 +259,7 @@ class WindowProperties:
     def _format_draw_data(self, draw_data, tag):
         """
         Formats the draw data into a human-readable string. Each entry in the draw data is formatted as
-        'IMAGE: <image>, COLOR: <color>, BORDERCOLOR: <border_color>'.
+        'IMAGE: <image>, COLOR: <color>, BORDERCOLOR: <BORDERCOLOR>'.
 
         Args:
             draw_data (list): A list of dictionaries containing the draw data (image, color, and border color).
@@ -300,10 +281,10 @@ class WindowProperties:
         for i, entry in enumerate(draw_data):
             image = entry["image"]
             color = " ".join(map(str, entry["color"]))
-            border_color = " ".join(map(str, entry["border_color"]))
+            BORDERCOLOR = " ".join(map(str, entry["BORDERCOLOR"]))
 
             # Format the draw data entry as a string
-            formatted_line = f"IMAGE: {image}, COLOR: {color}, BORDERCOLOR: {border_color}"
+            formatted_line = f"IMAGE: {image}, COLOR: {color}, BORDERCOLOR: {BORDERCOLOR}"
 
             # If it's the last item, end with ';'
             if i == len(draw_data) - 1:
@@ -316,7 +297,7 @@ class WindowProperties:
         # Join the formatted lines into a final string
         return "\n".join(formatted_lines)
 
-    def _format_extra_properties(self):
+    def _format_extra_properties(self, properties):
         """
         Formats the properties fields into a human-readable string.
 
@@ -324,8 +305,8 @@ class WindowProperties:
             str: The formatted properties fields string.
         """
         output = []
-        if self.extra_properties:
-            for key, value in self.extra_properties.items():
+        if properties:
+            for key, value in properties.items():
                 if isinstance(value, list):
                     if key.endswith("DRAWDATA"):
                         draw_data_str = self._format_draw_data(value, key)
@@ -379,13 +360,19 @@ class WindowProperties:
             output.append(f'TEXT = "{self.TEXT}";')
         output.append(self._format_text_color())
 
-        # Add formatted draw data
-        output.append(f"ENABLEDDRAWDATA = {self._format_draw_data(self.enabled_draw_data, 'ENABLEDDRAWDATA')}")
-        output.append(f"DISABLEDDRAWDATA = {self._format_draw_data(self.disabled_draw_data, 'DISABLEDDRAWDATA')}")
-        output.append(f"HILITEDRAWDATA = {self._format_draw_data(self.hilite_draw_data, 'HILITEDRAWDATA')}")
+        # Add default draw data
+        default_draw_data = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA']
+        for texture_key in default_draw_data:
+            output.append(
+                f"{texture_key} = {self._format_draw_data(self.textures[texture_key], texture_key)}")
 
-        # Add properties fields if they exist
-        output.append(self._format_extra_properties())
+        attributes = self._format_extra_properties(self.attributes)
+        output.append(attributes)
+
+        for texture_key in self.textures:
+            if texture_key not in default_draw_data:
+                output.append(
+                    f"{texture_key} = {self._format_draw_data(self.textures[texture_key], texture_key)}")
 
         return '\n'.join(output)
 
@@ -455,11 +442,11 @@ def parse_draw_data(lines_iter):
                 draw_matches = re.findall(r'IMAGE: (\S+), COLOR: (\d+ \d+ \d+ \d+), BORDERCOLOR: (\d+ \d+ \d+ \d+)',
                                           combined_line)
                 if draw_matches:
-                    for image, color, border_color in draw_matches:
+                    for image, color, BORDERCOLOR in draw_matches:
                         draw_data.append({
                             "image": image,
                             "color": tuple(map(int, color.split())),
-                            "border_color": tuple(map(int, border_color.split()))
+                            "BORDERCOLOR": tuple(map(int, BORDERCOLOR.split()))
                         })
                     return draw_data  # Return if valid data found
                 else:
@@ -481,9 +468,9 @@ def parse_color_field(value):
     return color_data
 
 
-def parse_extra_properties(lines_iter):
+def parse_textures_properties(lines_iter):
     # Dictionary to store parsed values
-    extra_properties = {}
+    textures_properties = {}
     combined_line = ""
     tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+);')
 
@@ -499,49 +486,76 @@ def parse_extra_properties(lines_iter):
                     tag, value = match.groups()
                     value = value.strip()
                     # Handling draw data (like IMAGE, COLOR, BORDERCOLOR)
-                    if tag.endswith("DRAWDATA"):
-                        extra_properties[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
-                    elif tag.endswith("DATA"):
-                        subfields = []
-                        sub_lines_iter = LineIterator(value.split(','))  # create iterator for subfields
-                        columns_value = None
-                        columns_widths = 0
-
-                        while True:
-                            try:
-                                sub_line = next(sub_lines_iter).strip()
-                                sub_match = re.match(r'(\w+):\s*([^,;]+)(?:,|$)', sub_line)
-                                if sub_match:
-                                    sub_name, sub_value = sub_match.groups()
-                                    sub_value = int(sub_value.strip())
-
-                                    if sub_name == "COLUMNS":
-                                        # Save the COLUMNS value to check COLUMNSWIDTH later
-                                        columns_value = sub_value
-                                    elif sub_name == "COLUMNSWIDTH":
-                                        # Collect COLUMNSWIDTH appears
-                                        columns_widths += 1
-                                    subfields.append({sub_name: sub_value})
-                                elif sub_line:  # Skip empty subfields
-                                    raise ValueError(f"Invalid subfield format: '{sub_line}'")
-
-                            except StopIteration:
-                                # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
-                                if columns_value is not None:
-                                    if columns_widths != columns_value:
-                                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, combined_line,
-                                            f"Number of COLUMNSWIDTH ({columns_widths}) does not match COLUMNS number({columns_value})", error_level=2)
-                                break
-                        extra_properties[tag] = subfields
-                    else:
-                        raise ValueError("Invalid data")
+                    textures_properties[tag] = parse_draw_data(LineIterator(combined_line.splitlines()))
                 else:
                     raise ValueError("Invalid window_properties field format")
                 combined_line = ""
             next(lines_iter)
         except StopIteration:
             break
-    return extra_properties
+    return textures_properties
+
+def parse_attributes_properties(lines_iter):
+    # Dictionary to store parsed values
+    attributes_properties = {}
+    combined_line = ""
+    tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+)(?:,|;)?')
+    subfields = []
+    columns_value = None
+    columns_widths = 0
+
+    while True:
+        try:
+            line = lines_iter.peek().strip()
+            match = tag_value_pattern.match(line)
+            if line in ["END", "CHILD"] or (match and match.group(1).endswith("DRAWDATA")):
+                break
+            combined_line += line
+            if combined_line.endswith(';'):
+                match = tag_value_pattern.match(combined_line)
+                if match:
+                    tag, value = match.groups()
+                    value = value.strip()
+                    sub_lines_iter = LineIterator(value.split(','))  # create iterator for subfields
+
+                    while True:
+                        try:
+                            sub_line = next(sub_lines_iter).strip()
+                            sub_match = re.match(r'(\w+):\s*([^,;]+)(?:,|$)', sub_line)
+                            if sub_match:
+                                sub_name, sub_value = sub_match.groups()
+                                sub_value = int(sub_value.strip())
+
+                                if sub_name == "COLUMNS":
+                                    # Save the COLUMNS value to check COLUMNSWIDTH later
+                                    columns_value = sub_value
+                                elif sub_name == "COLUMNSWIDTH":
+                                    # Collect COLUMNSWIDTH appears
+                                    columns_widths += 1
+                                subfields.append({sub_name: sub_value})
+                            elif sub_line:  # Skip empty subfields
+                                raise ValueError(f"Invalid subfield format: '{sub_line}'")
+
+                        except StopIteration:
+                            # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
+                            if columns_value is not None:
+                                if columns_widths != columns_value:
+                                    ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number,
+                                                             combined_line,
+                                                             f"Number of COLUMNSWIDTH ({columns_widths}) does not match COLUMNS number({columns_value})",
+                                                             error_level=2)
+                            break
+                    if not subfields:
+                        raise ValueError("Invalid data")
+                else:
+                    raise ValueError("Invalid window_properties field format")
+                break
+            next(lines_iter)
+        except StopIteration:
+            break
+
+    return subfields
+
 
 
 # Function to parse the window properties and return a WindowProperties object
@@ -564,10 +578,8 @@ def parse_window_properties(lines_iter):
     tooltip_delay = None
     text = ""
     text_color = {}
-    enabled_draw_data = []
-    disabled_draw_data = []
-    hilited_draw_data = {}
-    extra_properties = {}
+    textures = {}
+    attributes = {}
 
     # A list to track tags we've seen so far, in the order they were encountered
     encountered_tags = []
@@ -661,19 +673,14 @@ def parse_window_properties(lines_iter):
                 case "TEXTCOLOR":
                     text_color = parse_text_colors(lines_iter)
 
-                # Handle DRAWDATA lines
-                case "ENABLEDDRAWDATA":
-                    enabled_draw_data = parse_draw_data(lines_iter)
-
-                case "DISABLEDDRAWDATA":
-                    disabled_draw_data = parse_draw_data(lines_iter)
-
-                case "HILITEDRAWDATA":
-                    hilited_draw_data = parse_draw_data(lines_iter)
-
                 # Handle other fields or additional custom parsing
-                case _:
-                    extra_properties = parse_extra_properties(lines_iter)
+                case _ :
+                    if tag.endswith("DRAWDATA"):
+                        textures[tag] = parse_draw_data(lines_iter)
+                    elif tag.endswith("DATA"):
+                        attributes[tag] = parse_attributes_properties(lines_iter)
+                    else:
+                        raise ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, f"Unknown tag: {tag}", error_level=2)
 
             # After processing, add the tag to the list of encountered tags
             line = lines_iter.peek().strip().rstrip(";")
@@ -707,10 +714,8 @@ def parse_window_properties(lines_iter):
             tooltip_delay=tooltip_delay,
             text=text,
             text_color=text_color,
-            enabled_draw_data=enabled_draw_data,
-            disabled_draw_data=disabled_draw_data,
-            hilited_draw_data=hilited_draw_data,
-            extra_properties=extra_properties
+            attributes=attributes,
+            textures=textures
         )
     except ValueError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)

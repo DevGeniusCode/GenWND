@@ -1,0 +1,206 @@
+WINDOW
+  WINDOWTYPE = USER
+  NAME = "dummy"
+	... rest of window properties
+  CHILD
+  WINDOW ; child
+    WINDOWTYPE = CHEAKBOX;
+	... rest of window child properties
+  END
+  ENDALLCHILDREN
+END
+
+
+NAME
+  |
+  |- NAME
+  |
+  |- NAME
+       |
+       |-NAME
+
+
+```python
+parser = {
+    'file_metadata': {
+        'FILE_VERSION': 1,
+        'LAYOUTBLOCK': {
+            'LAYOUTINIT': 'value',
+            'LAYOUTSHUTDOWN': 'value',
+            'LAYOUTUPDATE': 'value'
+        }
+    },
+    'windows': [
+        {
+            'window_key': 'uuid1',
+            'properties': {
+                'WINDOWTYPE': 'SCROLLLISTBOX',
+                'SCREENRECT': [
+                    {'UPPERLEFT': [68, 152]},
+                    {'BOTTOMRIGHT': [552, 428]},
+                    {'CREATIONRESOLUTION': [800, 600]}
+                ],
+                'NAME': 'ReplayMenu.wnd:ListboxReplayFiles',
+                'STATUS': ['ENABLED'],
+                'STYLE': ['SCROLLLISTBOX', 'MOUSETRACK'],
+                'SYSTEMCALLBACK': '[None]',
+                'INPUTCALLBACK': '[None]',
+                'TOOLTIPCALLBACK': '[None]',
+                'DRAWCALLBACK': '[None]',
+                'FONT': [
+                    {'NAME': 'Arial'},
+                    {'SIZE': 10},
+                    {'BOLD': 0}
+                ],
+                'HEADERTEMPLATE': 'LabelRegular',
+                'TOOLTIPDELAY': -1,
+                'TEXTCOLOR': [
+                    {'ENABLED': [254, 254, 254, 255]},
+                    {'ENABLEDBORDER': [0, 0, 0, 255]},
+                    {'DISABLED': [192, 192, 192, 255]},
+                    {'DISABLEDBORDER': [64, 64, 64, 255]},
+                    {'HILITE': [128, 128, 255, 255]},
+                    {'HILITEBORDER': [0, 0, 128, 255]}
+                ],
+                'ENABLEDDRAWDATA': [
+                    {'IMAGE': 'BlackSquare', 'COLOR': [0, 0, 0, 126], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'DISABLEDDRAWDATA': [
+                    {'IMAGE': 'NoImage', 'COLOR': [255, 4, 0, 0], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'HILITEDRAWDATA': [
+                    {'IMAGE': 'BlackSquare', 'COLOR': [0, 0, 0, 126], 'BORDERCOLOR': [49, 55, 168, 255]},
+                    # rest of 8 properties
+                ],
+                'extra_properties': {
+                    'LISTBOXDATA': [
+                        {'LENGTH': 100},
+                        {'AUTOSCROLL': 0},
+                        # rest of properties
+                    ],
+                    'LISTBOXENABLEDUPBUTTONDRAWDATA': [
+                        {'IMAGE': 'VSliderUpButtonEnabled', 'COLOR': [255, 0, 0, 255], 'BORDERCOLOR': [255, 128, 128, 255]},
+                        # rest of 8 properties
+                    ]
+                    # rest of extra_properties
+                }
+            },
+            'children': [
+                {
+                    'window_key': 'uuid2',
+                    'properties': {'OPTION': 'value'},
+                    'children': []
+                }
+            ]
+        },
+        {
+            'window_key': 'uuid3',
+            'properties': {'OPTION': 'value'},
+            'children': []
+        }
+    ]
+}
+```
+
+
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your window_properties string
+    # # Example usage:
+    # # Assuming 'parser' is an instance of ConfigParser
+    # # and has already parsed your window_properties string
+    # config_string = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #   CHILD
+    #   WINDOW
+    #     WINDOWTYPE = CHEAKBOX
+    #     NAME = "checkbox1"
+    #   END
+    #     CHILD
+    #     WINDOW
+    #       WINDOWTYPE = CHECKBOX2
+    #       NAME = "checkbox2"
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    #
+    # config_string_2 = """
+    # WINDOW
+    #   WINDOWTYPE = USER
+    #   NAME = "dummy"
+    #     ... rest of window properties
+    #   CHILD
+    #   WINDOW ; child
+    #     WINDOWTYPE = CHEAKBOX;
+    #     NAME = "checkbox2"
+    #     ... rest of window child properties
+    #   END
+    #   ENDALLCHILDREN
+    # END
+    # """
+    #
+    # config_string_3 = """
+    # WINDOW
+    #   NAME = "root"
+    #   properties: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #   CHILD
+    #     WINDOW
+    #     NAME = "child1"
+    #     properties: {'OPTION1': 'value1', 'OPTION2': 'value2'}
+    #     CHILD
+    #     WINDOW
+    #       NAME = "child1child1"
+    #       properties: {'OPTION5': 'value5'}
+    #     END
+    #     ENDALLCHILDREN
+    #
+    #     WINDOW
+    #     NAME = "child2"
+    #     properties: {'OPTION3': 'value3'}
+    #   END
+    #     CHILD
+    #       WINDOW
+    #        NAME = "child3"
+    #       properties: {'OPTION4': 'value4'}
+    #       CHILD
+    #         WINDOW
+    #         NAME = "child3child1"
+    #         properties: {'OPTION5': 'value5'}
+    #         END
+    #     END
+    #   ENDALLCHILDREN
+    # END
+    # """
+
+
+files and folders:
+
+WNDEdit\logs\log_current.log 
+WNDEdit\logs\log_current_old.log
+WNDEdit\resources\config.py
+WNDEdit\resources\example.wnd
+WNDEdit\resources\hierarchy.txt
+WNDEdit\resources\styles.qss
+WNDEdit\resources\icons\branch-closed.png
+WNDEdit\resources\icons\branch-end.png
+WNDEdit\resources\icons\branch-more.png
+WNDEdit\resources\icons\branch-open.png
+WNDEdit\resources\icons\vline.png
+WNDEdit\resources\wiki\SCROLLLISTBOX.md
+WNDEdit\src\error_handler.py
+WNDEdit\src\file_tree.py
+WNDEdit\src\log_manager.py
+WNDEdit\src\main.py
+WNDEdit\src\object_tree.py
+WNDEdit\src\property_editor.py
+WNDEdit\src\window\line_iterator.py
+WNDEdit\src\window\window_properties.py
+WNDEdit\src\window\wnd_parser.py 
+
+

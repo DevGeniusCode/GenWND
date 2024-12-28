@@ -1,0 +1,17 @@
+{
+    "username": "myNameIsYou",
+    "theme": "System",
+    "file_path": "/path/to/default/file",
+    "last_login": "2024-12-23T14:30:00",
+    "default_directory": "C:/Users/User/Documents",
+    "game_directory": "",
+    "preferences": {
+        "notifications": true,
+        "autosave": false
+    },
+    "settings": {
+        "max_connections": 10,
+        "timeout": 30
+    },
+    "language": "English"
+}

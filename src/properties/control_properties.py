@@ -29,26 +29,96 @@ class ControlForm(QWidget):
         """Dynamically create attributes based on control type. USER is default"""
         control_creation_map = {
             "USER": self.create_user_attributes,
-            # "PUSHBUTTON": self.create_pushbutton_attributes,
-            # "RADIOBUTTON": self.create_radiobutton_attributes,
-            # "ENTRYFIELD": self.create_entryfield_attributes,
-            # "STATICTEXT": self.create_statictxt_attributes,
-            # "PROGRESSBAR": self.create_progressbar_attributes,
-            # "SCROLLLISTBOX": self.create_scrolllistbox_attributes,
+            "PUSHBUTTON": self.create_pushbutton_attributes,
+            "RADIOBUTTON": self.create_radiobutton_attributes,
+            "ENTRYFIELD": self.create_entryfield_attributes,
+            "STATICTEXT": self.create_statictext_attributes,
+            "PROGRESSBAR": self.create_progressbar_attributes,
+            "SCROLLLISTBOX": self.create_scrolllistbox_attributes,
             "COMBOBOX": self.create_combobox_attributes,
-            # "CHECKBOX": self.create_checkbox_attributes,
-            # "HORZSLIDER": self.create_horzslider_attributes,
-            # "VERTSLIDER": self.create_vertslider_attributes
+            "CHECKBOX": self.create_checkbox_attributes,
+            "HORZSLIDER": self.create_slider_attributes,
+            "VERTSLIDER": self.create_slider_attributes
         }
 
         if control_type in control_creation_map:
             control_creation_map[control_type](self.control_attributes)
-        # else:
-        #     raise ValueError(f"Unknown type: {control_type}")
+        else:
+            raise ValueError(f"Unknown type: {control_type}")
 
-    def create_user_attributes(self, n):
-        """Creates a simple label with 'Hello'."""
-        pass
+    def create_user_attributes(self, properties):
+        self.create_default_textures(properties)
+
+    def create_pushbutton_attributes(self, properties):
+        self.create_default_textures(properties)
+
+    def create_radiobutton_attributes(self, properties):
+        self.create_attributes_for_control(properties.attributes['RADIOBUTTONDATA'][0])
+        self.create_default_textures(properties)
+
+    def create_entryfield_attributes(self, properties):
+        entryfield_data = normalize_boolean_values(properties.attributes['ENTRYFIELDDATA'],
+                                                   ['SECRETTEXT', 'NUMERICALONLY', 'ALPHANUMERICALONLY', 'ASCIIONLY'])
+        self.create_attributes_for_control(entryfield_data)
+        self.create_default_textures(properties)
+
+    def create_statictext_attributes(self, properties):
+        self.create_attributes_for_control(properties.attributes['STATICTEXTDATA'][0])
+        self.create_default_textures(properties)
+
+    def create_progressbar_attributes(self, properties):
+        self.create_default_textures(properties)
+
+    def create_scrolllistbox_attributes(self, properties):
+        listbox_data = normalize_boolean_values(properties.attributes['LISTBOXDATA'],
+                                                ['AUTOSCROLL', 'AUTOPURGE', 'SCROLLBAR', 'MULTISELECT', 'FORCESELECT'])
+
+        self.create_attributes_for_control(listbox_data)
+        texture_keys = [
+            'ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA',
+            'LISTBOXENABLEDUPBUTTONDRAWDATA', 'LISTBOXDISABLEDUPBUTTONDRAWDATA', 'LISTBOXHILITEUPBUTTONDRAWDATA',
+            'LISTBOXENABLEDDOWNBUTTONDRAWDATA', 'LISTBOXDISABLEDDOWNBUTTONDRAWDATA', 'LISTBOXHILITEDOWNBUTTONDRAWDATA',
+            'LISTBOXENABLEDSLIDERDRAWDATA', 'LISTBOXDISABLEDSLIDERDRAWDATA', 'LISTBOXHILITESLIDERDRAWDATA',
+            'SLIDERTHUMBENABLEDDRAWDATA', 'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA'
+        ]
+        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        self.create_textures_for_control(textures)
+
+    def create_combobox_attributes(self, properties):
+        combobox_data = normalize_boolean_values(properties.attributes['COMBOBOXDATA'],
+                                                 ['ISEDITABLE', 'ASCIIONLY', 'LETTERSANDNUMBERS'])
+        self.create_attributes_for_control(combobox_data)
+
+        texture_keys = [
+            'ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA',
+            'COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA', 'COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA',
+            'COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA',
+            'COMBOBOXEDITBOXENABLEDDRAWDATA', 'COMBOBOXEDITBOXDISABLEDDRAWDATA', 'COMBOBOXEDITBOXHILITEDRAWDATA',
+            'LISTBOXENABLEDUPBUTTONDRAWDATA', 'LISTBOXDISABLEDUPBUTTONDRAWDATA', 'LISTBOXHILITEUPBUTTONDRAWDATA',
+            'LISTBOXENABLEDDOWNBUTTONDRAWDATA', 'LISTBOXDISABLEDDOWNBUTTONDRAWDATA', 'LISTBOXHILITEDOWNBUTTONDRAWDATA',
+            'LISTBOXENABLEDSLIDERDRAWDATA', 'LISTBOXDISABLEDSLIDERDRAWDATA', 'LISTBOXHILITESLIDERDRAWDATA',
+            'SLIDERTHUMBENABLEDDRAWDATA', 'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA'
+        ]
+
+        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        self.create_textures_for_control(textures)
+
+    def create_checkbox_attributes(self, properties):
+        self.create_default_textures(properties)
+
+    def create_slider_attributes(self, properties):
+        slider_data = normalize_boolean_values(properties.attributes['SLIDERDATA'], [])
+        self.create_attributes_for_control(slider_data)
+        texture_keys = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA', 'SLIDERTHUMBENABLEDDRAWDATA',
+                        'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA']
+        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        self.create_textures_for_control(textures)
+
+
+    def create_default_textures(self, properties):
+        texture_keys = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA']
+        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        self.create_textures_for_control(textures)
 
     def create_attributes_for_control(self, attributes):
         """Creates controls for each property of the window depending on the control type
@@ -144,6 +214,9 @@ class ControlForm(QWidget):
             if main_key in self.control_attributes.textures \
             else self.control_attributes.attributes
 
+        if main_key.endswith("SLIDERDATA"):
+            main_key = "SLIDERDATA"
+
         for d in list_dict[main_key]:
             if sub_key in d and d[sub_key] != value:
                 d[sub_key] = value
@@ -156,65 +229,6 @@ class ControlForm(QWidget):
             if 'image' in d and d['image'] == image and sub_key in d and d[sub_key] != value:
                 d[sub_key] = value
                 # self.main_window.update_modified_state(True)
-
-    def create_combobox_attributes(self, properties):
-        def filter_empty_properties(properties_list):
-            return [
-                prop for prop in properties_list if not (
-                        'image' in prop and prop['image'] == 'NoImage'
-                        and 'color' in prop and prop['color'] == (255, 255, 255, 0)
-                        and 'BORDERCOLOR' in prop and prop['BORDERCOLOR'] == (255, 255, 255, 0)
-                )
-            ]
-
-        def convert_combobox_data(combobox_data):
-            """
-            Converts specific values (0 -> False, 1 -> True) for boolean-like fields in combobox attributes.
-            COMBOBOXDATA = ISEDITABLE: 0, # boolean-like field
-            MAXCHARS: 16, # integer field
-            MAXDISPLAY: 5, # integer field
-            ASCIIONLY: 0, # boolean-like field
-            LETTERSANDNUMBERS: 0; # boolean-like field
-            """
-            converted_data = {}
-            for item in combobox_data:
-                for key, value in item.items():
-                    if key in ['ISEDITABLE', 'ASCIIONLY', 'LETTERSANDNUMBERS']:
-                        if value == 0:
-                            converted_data[key] = False
-                        elif value == 1:
-                            converted_data[key] = True
-                        else:
-                            converted_data[key] = value
-                    else:
-                        converted_data[key] = value
-            return converted_data
-
-        combobox_data = convert_combobox_data(properties.attributes['COMBOBOXDATA'])
-        self.create_attributes_for_control(combobox_data)
-
-        enabled_data = filter_empty_properties(properties.textures['ENABLEDDRAWDATA'])
-        disabled_data = filter_empty_properties(properties.textures['DISABLEDDRAWDATA'])
-        hilite_data = filter_empty_properties(properties.textures['HILITEDRAWDATA'])
-        dropdown_button_enabled_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA'])
-        dropdown_button_disabled_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA'])
-        dropdown_button_hilite_data = filter_empty_properties(properties.textures['COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA'])
-        editbox_enabled_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXENABLEDDRAWDATA'])
-        editbox_disabled_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXDISABLEDDRAWDATA'])
-        editbox_hilite_data = filter_empty_properties(properties.textures['COMBOBOXEDITBOXHILITEDRAWDATA'])
-
-
-        self.create_textures_for_control({
-            'ENABLEDDRAWDATA': enabled_data,
-            'DISABLEDDRAWDATA': disabled_data,
-            'HILITEDRAWDATA': hilite_data,
-            'COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA': dropdown_button_enabled_data,
-            'COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA': dropdown_button_disabled_data,
-            'COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA': dropdown_button_hilite_data,
-            'COMBOBOXEDITBOXENABLEDDRAWDATA': editbox_enabled_data,
-            'COMBOBOXEDITBOXDISABLEDDRAWDATA': editbox_disabled_data,
-            'COMBOBOXEDITBOXHILITEDRAWDATA': editbox_hilite_data
-        })
 
     def clear(self):
         """Clear all widgets from the layout."""
@@ -273,3 +287,31 @@ def create_inner_section(title, parent, section_manager, object_name):
     section.setObjectName(object_name)  # Set the object name for QSS styling
     section.setStyleSheet("QFrame { border: none; }")  # Minimal styling
     return section
+
+def filter_empty_properties(properties_list):
+    return [
+        prop for prop in properties_list if not (
+                'image' in prop and prop['image'] == 'NoImage'
+                and 'color' in prop and prop['color'] == (255, 255, 255, 0)
+                and 'BORDERCOLOR' in prop and prop['BORDERCOLOR'] == (255, 255, 255, 0)
+        )
+    ]
+
+
+def normalize_boolean_values(attributes, boolean_keys):
+    """
+    Converts specific values (0 -> False, 1 -> True) for boolean-like fields in combobox attributes.
+    ISEDITABLE: 0, # boolean-like field
+    MAXCHARS: 16, # integer field
+    """
+    normalized_data = {}
+    for item in attributes:
+        for key, value in item.items():
+            if key in boolean_keys:
+                if value == 0:
+                    normalized_data[key] = False
+                elif value == 1:
+                    normalized_data[key] = True
+            else:
+                normalized_data[key] = value
+    return normalized_data

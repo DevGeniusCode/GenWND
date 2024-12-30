@@ -33,8 +33,8 @@ class WindowProperties:
                  attributes, textures):
         self.file_name = file_name
         self.WINDOWTYPE = window_type
-        self.SCREENRECT = screen_rect
         self.NAME = name
+        self.SCREENRECT = screen_rect
         self.STATUS = status
         self.STYLE = style
         self.SYSTEMCALLBACK = system_callback
@@ -86,7 +86,7 @@ class WindowProperties:
     @FONT.setter
     def FONT(self, value):
         # Font name must be one of the valid properties
-        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals"]
+        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals", "Courier"]
         if value["name"] not in valid_fonts:
             raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid properties: {valid_fonts}")
 
@@ -123,13 +123,17 @@ class WindowProperties:
 
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
-            raise InvalidValuesError(
-                f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
+            ErrorHandler.raise_error( '', 0, '',
+                                      f"Window name: {self.NAME}:\nUpper left {upper_left} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.", error_level=2)
+            # raise InvalidValuesError(
+            #     f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
         #
         # # # Check that bottom_right coordinates are within the bounds of creation_resolution
-        # if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-        #     raise InvalidValuesError(
-        #         f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
+        if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
+            ErrorHandler.raise_error('', 0, '',
+                                     f"Window name: {self.NAME}:\nBottom right {bottom_right} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.", error_level=2)
+            # raise InvalidValuesError(
+            #     f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
@@ -225,36 +229,23 @@ class WindowProperties:
 
     def _format_text_color(self):
         """
-        Formats the text color settings into a human-readable string, splitting across multiple lines
-        with indentation.
-
-        Returns:
-            str: The formatted text color string.
+        Formats the text color settings into a human-readable string, with explicit formatting
+        and precise spacing as required using f-strings.
         """
-        text_color_str = "TEXTCOLOR ="
-        color_strings = []
-        indent = " " * len(text_color_str) + " "  # Create an indent with the width of "TEXTCOLOR = "
+        text_color_str = "TEXTCOLOR = "
+        text_colors = self.TEXTCOLOR
+        indent = " " * len(text_color_str)
 
-        # Iterate through the text color dictionary and create formatted color strings
-        for key, color in self.TEXTCOLOR.items():
-            r, g, b, a = color
-            color_strings.append(f"{key}: {r} {g} {b} {a}")
-
-        formatted_lines = [text_color_str]
-        current_line = text_color_str  # Start with the initial "TEXTCOLOR =" line
-        for i, color_str in enumerate(color_strings):
-            if i % 2 == 0 and i != 0:  # If this is the first color on a new line
-                formatted_lines.append(indent + color_str + ",")  # Add a new line with the indent
-            else:  # If it's on the same line, just add it to the current_line string
-                if i == 0:
-                    formatted_lines[0] += " " + color_str + ","
-                else:
-                    formatted_lines[-1] += " " + color_str + ","
-
-        # Ensure the last line ends with a semicolon
-        formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
-
-        return '\n'.join(formatted_lines)
+        formatted_str = (
+            f"{text_color_str}"
+            f"ENABLED:  {text_colors['ENABLED'][0]} {text_colors['ENABLED'][1]} {text_colors['ENABLED'][2]} {text_colors['ENABLED'][3]}, "
+            f"ENABLEDBORDER:  {text_colors['ENABLEDBORDER'][0]} {text_colors['ENABLEDBORDER'][1]} {text_colors['ENABLEDBORDER'][2]} {text_colors['ENABLEDBORDER'][3]},\n"
+            f"{indent}DISABLED: {text_colors['DISABLED'][0]} {text_colors['DISABLED'][1]} {text_colors['DISABLED'][2]} {text_colors['DISABLED'][3]}, "
+            f"DISABLEDBORDER: {text_colors['DISABLEDBORDER'][0]} {text_colors['DISABLEDBORDER'][1]} {text_colors['DISABLEDBORDER'][2]} {text_colors['DISABLEDBORDER'][3]},\n"
+            f"{indent}HILITE:   {text_colors['HILITE'][0]} {text_colors['HILITE'][1]} {text_colors['HILITE'][2]} {text_colors['HILITE'][3]}, "
+            f"HILITEBORDER:   {text_colors['HILITEBORDER'][0]} {text_colors['HILITEBORDER'][1]} {text_colors['HILITEBORDER'][2]} {text_colors['HILITEBORDER'][3]};"
+        )
+        return formatted_str
 
     def _format_draw_data(self, draw_data, tag):
         """
@@ -538,7 +529,7 @@ def parse_attributes_properties(lines_iter):
 
                         except StopIteration:
                             # After processing, check if the number of COLUMNSWIDTH matches COLUMNS
-                            if columns_value is not None:
+                            if columns_value is not None and columns_value > 1:
                                 if columns_widths != columns_value:
                                     ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number,
                                                              combined_line,

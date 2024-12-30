@@ -57,7 +57,7 @@ class ControlForm(QWidget):
         self.create_default_textures(properties)
 
     def create_entryfield_attributes(self, properties):
-        entryfield_data = normalize_boolean_values(properties.attributes['ENTRYFIELDDATA'],
+        entryfield_data = normalize_boolean_values(properties.attributes['TEXTENTRYDATA'],
                                                    ['SECRETTEXT', 'NUMERICALONLY', 'ALPHANUMERICALONLY', 'ASCIIONLY'])
         self.create_attributes_for_control(entryfield_data)
         self.create_default_textures(properties)

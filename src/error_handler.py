@@ -15,7 +15,9 @@ class ErrorHandler:
         """
         log_manager = LogManager()  # Get the singleton log manager
 
-        error_details = f"Error in file '{file_path}'\n at line {line_number + 1}: {error_message}.\n Line content: `{line_content}`"
+        error_details = (f"Error in file '{file_path}'\n"
+                         f"At line {line_number + 1}: {error_message}.\n"
+                         f"Line content: `{line_content}`")
 
         if error_level == 1:
             # Critical error

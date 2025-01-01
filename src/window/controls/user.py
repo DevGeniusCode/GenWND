@@ -109,12 +109,16 @@ class UserControl(Window):
 
         # Check that upper_left coordinates are within the bounds of creation_resolution
         if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
-            ErrorHandler.raise_error( '', 0, '',
-                f"Window name: {self.properties['NAME']}:\nUpper left {upper_left} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.")
+            ErrorHandler.raise_error( self.file_name, 0, '',
+                f"Window name: {self.properties['NAME']}:\n"
+                f"Upper left {upper_left} coordinates must be within screen bounds\n"
+                f"defined by creation_resolution {creation_resolution}.", error_level=2)
         # Check that bottom_right coordinates are within the bounds of creation_resolution
         if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-            ErrorHandler.raise_error( '', 0, '',
-                f"Window name: {self.properties['NAME']}:\nBottom right {bottom_right} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.")
+            ErrorHandler.raise_error( self.file_name, 0, '',
+                f"Window name: {self.properties['NAME']}:\n"
+                f"Bottom right {bottom_right} coordinates must be within screen bounds\n"
+                f"defined by creation_resolution {creation_resolution}.", error_level=2)
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):

@@ -1,8 +1,8 @@
-# WNDEdit - Tool for Analyzing and Editing WND Files
+# GenWND - Tool for Analyzing and Editing WND Files
 
-**WNDEdit** is a software tool designed to analyze and edit **WND** files, which contain UI settings for the game **Command & Conquer: Generals – Zero Hour**. The tool allows for loading, analyzing, and displaying window (Windows) objects from a WND file in a graphical and organized manner. It was built using **PyQt6** and provides an intuitive user interface for managing and understanding WND files.
+**GenWND** is a software tool designed to analyze and edit **WND** files, which contain UI settings for the game **Command & Conquer: Generals – Zero Hour**. The tool allows for loading, analyzing, and displaying window (Windows) objects from a WND file in a graphical and organized manner. It was built using **PyQt6** and provides an intuitive user interface for managing and understanding WND files.
 
-The project is inspired by an existing proprietary software with the same name, developed by deezer. The goal of WNDEdit is to enhance the functionality and features of the original tool, while maintaining the original purpose and design.
+The project is inspired by an existing proprietary software with the name WNDEdit, developed by deezer. The goal of GenWND is to enhance the functionality and features of the original tool, while maintaining the original purpose and design.
 
 
 ## Project Structure
@@ -10,7 +10,7 @@ The project is inspired by an existing proprietary software with the same name, 
 The project is structured as follows:
 
 ```
-WNDEdit/
+GenWND/
 ├── readme.md
 ├── logs/
 │   ├── log_current.log
@@ -127,8 +127,8 @@ parser = {
 
 1. Download the code:
    ```bash
-   git clone https://github.com/DevGeniusCode/WNDEdit.git
-   cd WNDEdit
+   git clone https://github.com/DevGeniusCode/GenWND.git
+   cd GenWND
    ```
 
 2. Install the dependencies:
@@ -151,7 +151,7 @@ python src/main.py
 
 ### Error Handling
 
-In case of errors during the WND file parsing, **WNDEdit** uses an error-handling mechanism:
+In case of errors during the WND file parsing, **GenWND** uses an error-handling mechanism:
 - Errors at level 2 allow the user to skip the error.
 - If the error is critical, the loading process will stop.
 

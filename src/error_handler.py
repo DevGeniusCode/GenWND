@@ -42,3 +42,10 @@ class ErrorHandler:
         else:
             # Log the error without affecting the flow
             log_manager.log(f"Logged Error: {error_details}", level="INFO")
+
+class InvalidValuesError(Exception):
+    """Exception raised when the values are invalid."""
+
+    def __init__(self, message="Invalid values provided"):
+        self.message = message
+        super().__init__(self.message)

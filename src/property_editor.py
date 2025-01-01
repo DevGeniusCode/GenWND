@@ -5,7 +5,7 @@ import copy
 
 from src.properties.control_properties import ControlForm
 from src.window.line_iterator import LineIterator
-from src.window.window_properties import parse_window_properties, Window
+from src.window.window_properties import parse_window_properties
 from src.properties.general_properties import GeneralForm
 
 class PropertyEditor(QWidget):
@@ -17,6 +17,7 @@ class PropertyEditor(QWidget):
         super().__init__(parent)
         self.main_window = main_window
         self.properties = {}
+        self.control_object = None
 
         # Create tabs
         self.tabs = QTabWidget(self)
@@ -97,17 +98,18 @@ class PropertyEditor(QWidget):
         # Set layout for raw_tab
         self.raw_tab.setLayout(raw_layout)
 
-    def load_property(self, properties):
+    def load_property(self, control):
         """Loads the properties of a selected object into the editor."""
         status = self.main_window.is_modified
         self.clear()  # Clear any previous data
-
+        properties = control.properties
         if not properties:
             self.empty_label.setVisible(True)  # Show the empty label if no properties
             return
 
         self.original_properties = copy.deepcopy(properties)
-        self.properties = properties
+        self.properties = control.properties
+        self.control_object = control
         self.empty_label.setVisible(False)
         self.tabs.setVisible(True)
 
@@ -135,6 +137,7 @@ class PropertyEditor(QWidget):
 
         self.control_properties = ControlForm(self, control_attributes=properties)
         self.control_tab.layout().addWidget(self.control_properties)
+        self.control_properties.update_modified_state = self.main_window.update_modified_state
 
         # self.control_properties.type = properties.get('WINDOWTYPE', 'No type')
         # self.control_properties.type_label.setText(f"Type: {self.control_properties.type}")
@@ -234,7 +237,7 @@ class PropertyEditor(QWidget):
 
     def load_raw_properties(self):
         """Loads the raw properties into the raw editor."""
-        self.raw_edit.setPlainText(repr(self.properties))
+        self.raw_edit.setPlainText(repr(self.control_object))
 
     def display_error(self, error_message):
         """Displays an error message in the property editor."""
@@ -258,9 +261,12 @@ class PropertyEditor(QWidget):
         raw = self.raw_edit.toPlainText()
 
         try:
-            self.properties = parse_window_properties(LineIterator(raw.splitlines()))
+            self.control_object = parse_window_properties(LineIterator(raw.splitlines()),
+                                                      window_uuid=self.control_object.window_uuid,
+                                                      file_name=self.control_object.file_name)
 
             # If no error occurs, update the properties
+            self.properties = self.control_object.properties
             self.error_label.setText("")
             self.main_window.selected_object.properties = self.properties
             self.load_general_properties()

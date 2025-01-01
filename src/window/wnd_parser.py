@@ -48,7 +48,7 @@ class WndParser:
         lines.append(f"{indent}WINDOW")
 
         # Add window properties (e.g., name, type, etc.)
-        options_repr = repr(window.properties)
+        options_repr = repr(window)
         for line in options_repr.splitlines():
             lines.append(f"{indent}  {line}")  # Add 2 more spaces for indentation inside the window
 
@@ -230,14 +230,12 @@ class WndParser:
                 window_uuid = str(uuid.uuid4())
 
                 # Parse the window's properties using the parse_window_properties function
-                window_properties = parse_window_properties(lines_iter)
+                new_window = parse_window_properties(lines_iter, file_name=lines_iter.file_path, window_uuid=window_uuid)
+
+                # Create a new Window object with its properties
                 next_line = lines_iter.peek().strip()
                 if next_line.startswith("END") or next_line.startswith("CHILD"):
                     line = next_line
-
-                # Create a new Window object with its properties
-                new_window = Window(window_uuid, window_properties=window_properties, children=[])
-
                 # If there is a parent window, add the new window as a child of the correct parent
                 if parent_window:
                     parent_window.children.append(new_window)

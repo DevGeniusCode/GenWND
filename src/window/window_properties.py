@@ -1,371 +1,41 @@
 import re
-from email.policy import default
-
-from src.error_handler import ErrorHandler
+from src.error_handler import ErrorHandler, InvalidValuesError
+from src.window.controls.checkbox import CheckBoxControl
+from src.window.controls.combobox import ComboBoxControl
+from src.window.controls.entryfiled import EntryFieldControl
+from src.window.controls.horzslider import HorzSliderControl
+from src.window.controls.progressbar import ProgressBarControl
+from src.window.controls.pushbutton import PushButtonControl
+from src.window.controls.radiobutton import RadioButtonControl
+from src.window.controls.scrollistbox import ScrollListBoxControl
+from src.window.controls.statictext import StaticTextControl
+from src.window.controls.user import UserControl
+from src.window.controls.vertslider import VertSliderControl
 from src.window.line_iterator import LineIterator
 
 
-class InvalidValuesError(Exception):
-    """Exception raised when the values are invalid."""
+class ObjectFactory:
+    def __init__(self):
+        # Mapping from object types to control classes
+        self.control_classes = {
+            "USER": UserControl,
+            "PUSHBUTTON": PushButtonControl,
+            "STATICTEXT": StaticTextControl,
+            "ENTRYFIELD": EntryFieldControl,
+            "CHECKBOX": CheckBoxControl,
+            "RADIOBUTTON": RadioButtonControl,
+            "PROGRESSBAR": ProgressBarControl,
+            "HORZSLIDER": HorzSliderControl,
+            "VERTSLIDER": VertSliderControl,
+            "SCROLLLISTBOX": ScrollListBoxControl,
+            "COMBOBOX": ComboBoxControl
+        }
 
-    def __init__(self, message="Invalid values provided"):
-        self.message = message
-        super().__init__(self.message)
-
-
-class Window:
-    def __init__(self, window_uuid, window_properties=None, children=None):
-        """
-        Initializes a new window object.
-        :param window_uuid: A unique identifier for the window (UUID).
-        :param window_properties: Configuration properties for the window.
-        :param children: A list of child windows, defaults to an empty list if no children are provided.
-        """
-        self.window_uuid = window_uuid
-        self.properties = window_properties or {}
-        self.children = children if children is not None else []
-
-
-class WindowProperties:
-    def __init__(self, file_name, window_type, screen_rect, name, status, style,
-                 system_callback, input_callback, tooltip_callback, draw_callback,
-                 font, header_template, tooltip_text, tooltip_delay, text, text_color,
-                 attributes, textures):
-        self.file_name = file_name
-        self.WINDOWTYPE = window_type
-        self.NAME = name
-        self.SCREENRECT = screen_rect
-        self.STATUS = status
-        self.STYLE = style
-        self.SYSTEMCALLBACK = system_callback
-        self.INPUTCALLBACK = input_callback
-        self.TOOLTIPCALLBACK = tooltip_callback
-        self.DRAWCALLBACK = draw_callback
-        self.FONT = font
-        self.HEADERTEMPLATE = header_template
-        self.TOOLTIPTEXT = tooltip_text
-        self.TOOLTIPDELAY = tooltip_delay
-        self.TEXT = text
-        self.TEXTCOLOR = text_color
-        self.attributes = attributes
-        self._textures = textures
-
-    def __contains__(self, key):
-        """
-        Enables the use of `in` to check if a key exists as an attribute in the WindowProperties instance.
-        """
-        return hasattr(self, key)
-
-    # def __setitem__(self, key, value):
-    #     if key not in self:
-    #         raise KeyError(f"Key '{key}' not found in WindowProperties attributes.")
-    #
-    #     setattr(self, key, value)
-    #
-    # def __getitem__(self, key):
-    #     """
-    #     Retrieves the value of the specified attribute,
-    #     allowing for access using the subscript operator (`[]`).
-    #     """
-    #     if hasattr(self, key):
-    #         return getattr(self, key)
-    #     else:
-    #         raise KeyError(f"Key '{key}' not found in WindowProperties attributes.")
-
-    def get(self, key, default=None):
-        """
-        Retrieve a value by key, returning default if the key does not exist.
-        If the key is 'name' and the value contains a colon (":"), return the part after the colon.
-        """
-        return getattr(self, key, default)
-
-    @property
-    def FONT(self):
-        return self._font
-
-    @FONT.setter
-    def FONT(self, value):
-        # Font name must be one of the valid properties
-        valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals", "Courier"]
-        if value["name"] not in valid_fonts:
-            raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid properties: {valid_fonts}")
-
-        # Font size must be between 8 and 72
-        if not (8 <= value["size"] <= 72):
-            raise InvalidValuesError("Font size must be between 8 and 72.")
-
-        # Bold value must be either 0 or 1
-        if value["bold"] not in [0, 1]:
-            raise InvalidValuesError("Font bold must be either 0 or 1.")
-
-        self._font = value
-
-    @property
-    def STATUS(self):
-        return self._status
-
-    @STATUS.setter
-    def STATUS(self, value):
-        valid_status = ["ENABLED", "DISABLED", "IMAGE", "HIDDEN"]
-        # Status must be one of the predefined properties
-        if not any(status in value for status in valid_status):
-            raise InvalidValuesError(f"Invalid status: {value}. Valid properties: {valid_status}")
-        self._status = value
-
-    @property
-    def SCREENRECT(self):
-        return self._screen_rect
-
-    @SCREENRECT.setter
-    def SCREENRECT(self, value):
-        upper_left, bottom_right = value["UPPERLEFT"], value["BOTTOMRIGHT"]
-        creation_resolution = value["CREATIONRESOLUTION"]  # New addition to handle the resolution
-
-        # Check that upper_left coordinates are within the bounds of creation_resolution
-        if not (0 <= upper_left[0] <= creation_resolution[0] and 0 <= upper_left[1] <= creation_resolution[1]):
-            ErrorHandler.raise_error( '', 0, '',
-                                      f"Window name: {self.NAME}:\nUpper left {upper_left} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.", error_level=2)
-            # raise InvalidValuesError(
-            #     f"Upper left coordinates must be within screen bounds defined by creation_resolution.")
-        #
-        # # # Check that bottom_right coordinates are within the bounds of creation_resolution
-        if not (0 <= bottom_right[0] <= creation_resolution[0] and 0 <= bottom_right[1] <= creation_resolution[1]):
-            ErrorHandler.raise_error('', 0, '',
-                                     f"Window name: {self.NAME}:\nBottom right {bottom_right} coordinates must be within screen bounds\ndefined by creation_resolution {creation_resolution}.", error_level=2)
-            # raise InvalidValuesError(
-            #     f"Bottom right coordinates must be within screen bounds defined by creation_resolution.")
-
-        # Ensure the rectangle size is at least 1x1 pixel
-        if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
-            raise InvalidValuesError("Rectangle size must be at least 1x1 pixel.")
-
-        # If all validations pass, store the value
-        self._screen_rect = value
-
-    @property
-    def TEXTCOLOR(self):
-        return self._text_color
-
-    def _is_valid_color(self, color):
-        # Check if the color is a tuple of 4 integers (RGBA format)
-        if isinstance(color, tuple) and len(color) == 4:
-            # Ensure each component is in the range 0-255
-            return all(0 <= component <= 255 for component in color)
-        return False
-
-    @TEXTCOLOR.setter
-    def TEXTCOLOR(self, value):
-        # Every color must be in RGBA format with values between 0 and 255
-        for color_name, color in value.items():
-            if not self._is_valid_color(color):
-                raise InvalidValuesError(
-                    f"Invalid color for {color_name}: {color}. Colors must be in RGBA format with values between 0 and 255.")
-
-        self._text_color = value
-
-    # Utility function to validate RGBA color format
-    def _validate_rgba(self, color):
-        if len(color) != 4:
-            raise InvalidValuesError("Color must have exactly 4 values (R, G, B, A).")
-        for value in color:
-            if not (0 <= value <= 255):
-                raise InvalidValuesError("Color values must be between 0 and 255.")
-
-    # Utility function to validate IMAGE field
-    def _validate_image(self, image):
-        if image != "NoImage" and not isinstance(image, str):
-            raise InvalidValuesError("Image must be a string or 'NoImage'.")
-
-    # General draw data validation
-    def _validate_draw_data(self, draw_data):
-        # Validate the format for each entry
-        if not isinstance(draw_data, list) or len(draw_data) != 9:
-            raise InvalidValuesError(f"Draw data must be a list with exactly 9 items, len: {len(draw_data)}")
-
-        for entry in draw_data:
-            if "image" not in entry or "color" not in entry or "BORDERCOLOR" not in entry:
-                raise InvalidValuesError("Each draw data entry must contain IMAGE, COLOR, and BORDERCOLOR.")
-            self._validate_image(entry["image"])
-            self._validate_rgba(entry["color"])
-            self._validate_rgba(entry["BORDERCOLOR"])
-
-    # Use internal variables for drawing data
-
-    @property
-    def textures(self):
-        return self._textures
-
-    @textures.setter
-    def textures(self, value):
-        for key, draw_data in value.items():
-            self._validate_draw_data(draw_data)
-        self._textures = value
-
-
-    def _format_screenrect(self):
-        """
-        Formats the screen rectangle (upper left, bottom right, and creation resolution)
-        into a human-readable string.
-
-        Returns:
-            str: The formatted screen rectangle string.
-        """
-        screen_rect = self.SCREENRECT
-        return (
-            f"SCREENRECT = UPPERLEFT: {screen_rect['UPPERLEFT'][0]} {screen_rect['UPPERLEFT'][1]},\n"
-            f"             BOTTOMRIGHT: {screen_rect['BOTTOMRIGHT'][0]} {screen_rect['BOTTOMRIGHT'][1]},\n"
-            f"             CREATIONRESOLUTION: {screen_rect['CREATIONRESOLUTION'][0]} {screen_rect['CREATIONRESOLUTION'][1]};"
-        )
-
-    def _format_font(self):
-        """
-        Formats the font data (name, size, bold status) into a human-readable string.
-
-        Returns:
-            str: The formatted font string.
-        """
-        font = self.FONT
-        return f'FONT = NAME: "{font["name"]}", SIZE: {font["size"]}, BOLD: {font["bold"]};'
-
-    def _format_text_color(self):
-        """
-        Formats the text color settings into a human-readable string, with explicit formatting
-        and precise spacing as required using f-strings.
-        """
-        text_color_str = "TEXTCOLOR = "
-        text_colors = self.TEXTCOLOR
-        indent = " " * len(text_color_str)
-
-        formatted_str = (
-            f"{text_color_str}"
-            f"ENABLED:  {text_colors['ENABLED'][0]} {text_colors['ENABLED'][1]} {text_colors['ENABLED'][2]} {text_colors['ENABLED'][3]}, "
-            f"ENABLEDBORDER:  {text_colors['ENABLEDBORDER'][0]} {text_colors['ENABLEDBORDER'][1]} {text_colors['ENABLEDBORDER'][2]} {text_colors['ENABLEDBORDER'][3]},\n"
-            f"{indent}DISABLED: {text_colors['DISABLED'][0]} {text_colors['DISABLED'][1]} {text_colors['DISABLED'][2]} {text_colors['DISABLED'][3]}, "
-            f"DISABLEDBORDER: {text_colors['DISABLEDBORDER'][0]} {text_colors['DISABLEDBORDER'][1]} {text_colors['DISABLEDBORDER'][2]} {text_colors['DISABLEDBORDER'][3]},\n"
-            f"{indent}HILITE:   {text_colors['HILITE'][0]} {text_colors['HILITE'][1]} {text_colors['HILITE'][2]} {text_colors['HILITE'][3]}, "
-            f"HILITEBORDER:   {text_colors['HILITEBORDER'][0]} {text_colors['HILITEBORDER'][1]} {text_colors['HILITEBORDER'][2]} {text_colors['HILITEBORDER'][3]};"
-        )
-        return formatted_str
-
-    def _format_draw_data(self, draw_data, tag):
-        """
-        Formats the draw data into a human-readable string. Each entry in the draw data is formatted as
-        'IMAGE: <image>, COLOR: <color>, BORDERCOLOR: <BORDERCOLOR>'.
-
-        Args:
-            draw_data (list): A list of dictionaries containing the draw data (image, color, and border color).
-            tag (str): The name of the tag for the draw data (e.g., ENABLEDDRAWDATA).
-
-        Returns:
-            str: The formatted draw data string.
-        """
-        # Calculate the indentation width based on the tag
-        width = len(tag + ' = ')
-        indent = " " * width
-
-        # If there is no draw data, return an empty string
-        if not draw_data:
-            return ""
-
-        formatted_lines = []  # Start without the tag
-        # Iterate through each entry in the draw data
-        for i, entry in enumerate(draw_data):
-            image = entry["image"]
-            color = " ".join(map(str, entry["color"]))
-            BORDERCOLOR = " ".join(map(str, entry["BORDERCOLOR"]))
-
-            # Format the draw data entry as a string
-            formatted_line = f"IMAGE: {image}, COLOR: {color}, BORDERCOLOR: {BORDERCOLOR}"
-
-            # If it's the last item, end with ';'
-            if i == len(draw_data) - 1:
-                formatted_lines.append(indent + formatted_line + ";")
-            elif i == 0:
-                formatted_lines.append(formatted_line + ",")
-            else:
-                formatted_lines.append(indent + formatted_line + ",")
-
-        # Join the formatted lines into a final string
-        return "\n".join(formatted_lines)
-
-    def _format_extra_properties(self, properties):
-        """
-        Formats the properties fields into a human-readable string.
-
-        Returns:
-            str: The formatted properties fields string.
-        """
-        output = []
-        if properties:
-            for key, value in properties.items():
-                if isinstance(value, list):
-                    if key.endswith("DRAWDATA"):
-                        draw_data_str = self._format_draw_data(value, key)
-                        if draw_data_str:
-                            output.append(f"{key} = " + draw_data_str)
-                    else:
-                        formatted_lines = [f"{key} ="]
-                        indent = " " * (len(key + ' = '))
-                        first = True
-                        for item in value:
-                            # Process each dictionary in the list
-                            for k, v in item.items():
-                                if first:
-                                    formatted_lines[0] += f" {k}: {v},"  # Add to the key line
-                                    first = False
-                                else:
-                                    formatted_lines.append(f"{indent}{k}: {v},")  # Subsequent values indented
-
-                        # Remove the last comma and add semicolon
-                        formatted_lines[-1] = formatted_lines[-1].rstrip(",") + ";"
-                        output.extend(formatted_lines)
-
-        return "\n".join(output)
-
-    def __repr__(self):
-        """
-        Formats the entire object into a string representation.
-
-        Returns:
-            str: The formatted string representation of the object.
-        """
-        output = []
-
-        output.append(f"WINDOWTYPE = {self.WINDOWTYPE};")
-        output.append(self._format_screenrect())
-        output.append(f'NAME = "{self.file_name}:{self.NAME}";')
-        output.append(f"STATUS = {'+'.join(self.STATUS)};")
-        output.append(f"STYLE = {'+'.join(self.STYLE)};")
-        output.append(f'SYSTEMCALLBACK = "{self.SYSTEMCALLBACK}";')
-        output.append(f'INPUTCALLBACK = "{self.INPUTCALLBACK}";')
-        output.append(f'TOOLTIPCALLBACK = "{self.TOOLTIPCALLBACK}";')
-        output.append(f'DRAWCALLBACK = "{self.DRAWCALLBACK}";')
-        output.append(self._format_font())
-        output.append(f'HEADERTEMPLATE = "{self.HEADERTEMPLATE}";')
-
-        if self.TOOLTIPTEXT:
-            output.append(f'TOOLTIPTEXT = "{self.TOOLTIPTEXT}";')
-        if self.TOOLTIPDELAY:
-            output.append(f'TOOLTIPDELAY = {self.TOOLTIPDELAY};')
-        if self.TEXT:
-            output.append(f'TEXT = "{self.TEXT}";')
-        output.append(self._format_text_color())
-
-        # Add default draw data
-        default_draw_data = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA']
-        for texture_key in default_draw_data:
-            output.append(
-                f"{texture_key} = {self._format_draw_data(self.textures[texture_key], texture_key)}")
-
-        attributes = self._format_extra_properties(self.attributes)
-        output.append(attributes)
-
-        for texture_key in self.textures:
-            if texture_key not in default_draw_data:
-                output.append(
-                    f"{texture_key} = {self._format_draw_data(self.textures[texture_key], texture_key)}")
-
-        return '\n'.join(output)
+    def create_object(self, object_type, window_uuid, properties=None, children=None, file_name=None):
+        control_class = self.control_classes.get(object_type)
+        if not control_class:
+            raise ValueError(f"Invalid window type: {object_type}")
+        return control_class(window_uuid, properties, children, file_name)
 
 
 def parse_screenrect(lines_iter):
@@ -435,8 +105,8 @@ def parse_draw_data(lines_iter):
                 if draw_matches:
                     for image, color, BORDERCOLOR in draw_matches:
                         draw_data.append({
-                            "image": image,
-                            "color": tuple(map(int, color.split())),
+                            "IMAGE": image,
+                            "COLOR": tuple(map(int, color.split())),
                             "BORDERCOLOR": tuple(map(int, BORDERCOLOR.split()))
                         })
                     return draw_data  # Return if valid data found
@@ -486,9 +156,9 @@ def parse_textures_properties(lines_iter):
             break
     return textures_properties
 
+
 def parse_attributes_properties(lines_iter):
     # Dictionary to store parsed values
-    attributes_properties = {}
     combined_line = ""
     tag_value_pattern = re.compile(r'(\w+)\s*=\s*([^;]+)(?:,|;)?')
     subfields = []
@@ -548,11 +218,9 @@ def parse_attributes_properties(lines_iter):
     return subfields
 
 
-
-# Function to parse the window properties and return a WindowProperties object
-def parse_window_properties(lines_iter):
+# Function to parse the window properties and return a Window object
+def parse_window_properties(lines_iter, window_uuid, file_name):
     # Initialize variables to store parsed data
-    file_name=""
     line_start = lines_iter.line_number
     window_type = ""
     screen_rect = {}
@@ -592,10 +260,9 @@ def parse_window_properties(lines_iter):
 
             if "=" not in line and not line.startswith(";"):
                 ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
-                "Unexpeced line", error_level=2)
+                                         "Unexpeced line", error_level=2)
 
             tag = line.split('=')[0].strip()
-
             # Check if the tag appears in the correct order
             if tag in correct_tag_order:
                 expected_index = correct_tag_order.index(tag)
@@ -605,6 +272,7 @@ def parse_window_properties(lines_iter):
                     if expected_index < last_encountered_index:
                         # If the tag appears out of order, raise an error using _raise_error
                         raise ValueError(f"Tag '{tag}' appeared out of order. Expected after '{last_encountered_tag}'.")
+
             # Parse each line based on its tag
             match tag:
                 case "WINDOWTYPE":
@@ -616,7 +284,8 @@ def parse_window_properties(lines_iter):
                 case "NAME":
                     file_name = line.split("=")[1].strip().strip('"').split(":")[0]
                     if file_name == "":
-                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, f"file name is missing in name", error_level=2)
+                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
+                                                 f"file name is missing in name", error_level=2)
                     name = line.split("=")[1].strip().strip('"').split(":")[-1]
 
                 # Handle multiple STATUS values (e.g., ENABLED+IMAGE)
@@ -665,13 +334,14 @@ def parse_window_properties(lines_iter):
                     text_color = parse_text_colors(lines_iter)
 
                 # Handle other fields or additional custom parsing
-                case _ :
+                case _:
                     if tag.endswith("DRAWDATA"):
                         textures[tag] = parse_draw_data(lines_iter)
                     elif tag.endswith("DATA"):
                         attributes[tag] = parse_attributes_properties(lines_iter)
                     else:
-                        raise ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, f"Unknown tag: {tag}", error_level=2)
+                        raise ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
+                                                       f"Unknown tag: {tag}", error_level=2)
 
             # After processing, add the tag to the list of encountered tags
             line = lines_iter.peek().strip().rstrip(";")
@@ -686,28 +356,37 @@ def parse_window_properties(lines_iter):
         except ValueError as e:
             ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line, e, error_level=2)
 
-    # Return the WindowProperties object with the parsed data
+    # Return the  object with the parsed data, according to window_type
     try:
-        return WindowProperties(
-            file_name=file_name,
-            window_type=window_type,
-            screen_rect=screen_rect,
-            name=name,
-            status=status,
-            style=style,
-            system_callback=system_callback,
-            input_callback=input_callback,
-            tooltip_callback=tooltip_callback,
-            draw_callback=draw_callback,
-            font=font,
-            header_template=header_template,
-            tooltip_text=tooltip_text,
-            tooltip_delay=tooltip_delay,
-            text=text,
-            text_color=text_color,
-            attributes=attributes,
-            textures=textures
-        )
+        factory = ObjectFactory()
+
+        new_object = factory.create_object(window_type, window_uuid,
+                                           properties={
+                                               'WINDOWTYPE': window_type,
+                                               'NAME': name,
+                                               # 'SCREENRECT': screen_rect,
+                                               # 'STATUS': status,
+                                               'STYLE': style,
+                                               'SYSTEMCALLBACK': system_callback,
+                                               'INPUTCALLBACK': input_callback,
+                                               'TOOLTIPCALLBACK': tooltip_callback,
+                                               'DRAWCALLBACK': draw_callback,
+                                               # 'FONT': font,
+                                               'HEADERTEMPLATE': header_template,
+                                               'TOOLTIPTEXT': tooltip_text,
+                                               'TOOLTIPDELAY': tooltip_delay,
+                                               'TEXT': text,
+                                               # 'TEXTCOLOR': text_color,
+                                               'attributes': attributes,
+                                               # 'textures': textures
+                                           }, file_name=file_name)
+        new_object._set_SCREENRECT(screen_rect)
+        new_object._set_STATUS(status)
+        new_object._set_FONT(font)
+        new_object._set_TEXTCOLOR(text_color)
+        new_object._set_textures(textures)
+
+        return new_object
     except ValueError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)
     except InvalidValuesError as e:

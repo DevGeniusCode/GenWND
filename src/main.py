@@ -342,7 +342,7 @@ class MainWindow(QMainWindow):
         if self.selected_object:
             try:
                 # Load the windows into the object tree
-                self.property_editor.load_property(self.selected_object.properties)
+                self.property_editor.load_property(self.selected_object)
                 self.log_manager.log(f"Loaded properties from object {self.selected_object.properties.get('WINDOWTYPE')} - {self.selected_object.properties.get('NAME', 'Unnamed')}", level="INFO")
 
             except ValueError as e:

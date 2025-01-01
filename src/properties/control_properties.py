@@ -11,6 +11,7 @@ class ControlForm(QWidget):
     def __init__(self, parent=None, control_attributes=None):
         super().__init__(parent)
         self.control_attributes = control_attributes
+        self.update_modified_state = None
 
         # Layout for the control-specific attributes
         self.layout = QVBoxLayout(self)
@@ -53,24 +54,24 @@ class ControlForm(QWidget):
         self.create_default_textures(properties)
 
     def create_radiobutton_attributes(self, properties):
-        self.create_attributes_for_control(properties.attributes['RADIOBUTTONDATA'][0])
+        self.create_attributes_for_control(properties['attributes']['RADIOBUTTONDATA'][0])
         self.create_default_textures(properties)
 
     def create_entryfield_attributes(self, properties):
-        entryfield_data = normalize_boolean_values(properties.attributes['ENTRYFIELDDATA'],
+        entryfield_data = normalize_boolean_values(properties['attributes']['TEXTENTRYDATA'],
                                                    ['SECRETTEXT', 'NUMERICALONLY', 'ALPHANUMERICALONLY', 'ASCIIONLY'])
         self.create_attributes_for_control(entryfield_data)
         self.create_default_textures(properties)
 
     def create_statictext_attributes(self, properties):
-        self.create_attributes_for_control(properties.attributes['STATICTEXTDATA'][0])
+        self.create_attributes_for_control(properties['attributes']['STATICTEXTDATA'][0])
         self.create_default_textures(properties)
 
     def create_progressbar_attributes(self, properties):
         self.create_default_textures(properties)
 
     def create_scrolllistbox_attributes(self, properties):
-        listbox_data = normalize_boolean_values(properties.attributes['LISTBOXDATA'],
+        listbox_data = normalize_boolean_values(properties['attributes']['LISTBOXDATA'],
                                                 ['AUTOSCROLL', 'AUTOPURGE', 'SCROLLBAR', 'MULTISELECT', 'FORCESELECT'])
 
         self.create_attributes_for_control(listbox_data)
@@ -85,7 +86,7 @@ class ControlForm(QWidget):
         self.create_textures_for_control(textures)
 
     def create_combobox_attributes(self, properties):
-        combobox_data = normalize_boolean_values(properties.attributes['COMBOBOXDATA'],
+        combobox_data = normalize_boolean_values(properties['attributes']['COMBOBOXDATA'],
                                                  ['ISEDITABLE', 'ASCIIONLY', 'LETTERSANDNUMBERS'])
         self.create_attributes_for_control(combobox_data)
 
@@ -100,24 +101,24 @@ class ControlForm(QWidget):
             'SLIDERTHUMBENABLEDDRAWDATA', 'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA'
         ]
 
-        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        textures = {key: filter_empty_properties(properties['textures'][key]) for key in texture_keys}
         self.create_textures_for_control(textures)
 
     def create_checkbox_attributes(self, properties):
         self.create_default_textures(properties)
 
     def create_slider_attributes(self, properties):
-        slider_data = normalize_boolean_values(properties.attributes['SLIDERDATA'], [])
+        slider_data = normalize_boolean_values(properties['attributes']['SLIDERDATA'], [])
         self.create_attributes_for_control(slider_data)
         texture_keys = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA', 'SLIDERTHUMBENABLEDDRAWDATA',
                         'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA']
-        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        textures = {key: filter_empty_properties(properties['textures'][key]) for key in texture_keys}
         self.create_textures_for_control(textures)
 
 
     def create_default_textures(self, properties):
         texture_keys = ['ENABLEDDRAWDATA', 'DISABLEDDRAWDATA', 'HILITEDRAWDATA']
-        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        textures = {key: filter_empty_properties(properties['textures'][key]) for key in texture_keys}
         self.create_textures_for_control(textures)
 
     def create_attributes_for_control(self, attributes):
@@ -170,7 +171,7 @@ class ControlForm(QWidget):
             color = color_picker_app.color_data['texture_layout']['color']
             border = color_picker_app.color_data['texture_layout']['shadow']
 
-            self.update_texture_property(texture_type, 'color', image, (
+            self.update_texture_property(texture_type, 'COLOR', image, (
                 color.red(), color.green(), color.blue(), color.alpha()))
             self.update_texture_property(texture_type, 'BORDERCOLOR', image, (
                 border.red(), border.green(), border.blue(), border.alpha()))
@@ -181,14 +182,14 @@ class ControlForm(QWidget):
                 section = CollapsibleSection(title=texture_type_name, parent=self,
                                              section_manager=outer_section_manager)
                 for texture in texture_data:
-                    inner_section_title = texture.get('image', 'No Image')
+                    inner_section_title = texture.get('IMAGE', 'No Image')
                     inner_section = create_inner_section(inner_section_title, section, inner_section_manager,
                                                          "InnerSection")
 
                     color_picker_app = ColorPickerApp(
                         color_data={'texture_layout': {
-                            "color": QColor(texture.get('color')[0], texture.get('color')[1], texture.get('color')[2],
-                                            texture.get('color')[3]),
+                            "color": QColor(texture.get('COLOR')[0], texture.get('COLOR')[1], texture.get('COLOR')[2],
+                                            texture.get('COLOR')[3]),
                             "shadow": QColor(texture.get('BORDERCOLOR')[0], texture.get('BORDERCOLOR')[1],
                                              texture.get('BORDERCOLOR')[2], texture.get('BORDERCOLOR')[3])
                         }}
@@ -210,25 +211,28 @@ class ControlForm(QWidget):
                 self.layout.addWidget(section)
 
     def update_sub_property(self, main_key, sub_key, value=None):
-        list_dict = self.control_attributes.textures \
-            if main_key in self.control_attributes.textures \
-            else self.control_attributes.attributes
+        list_dict = self.control_attributes['textures'] \
+            if main_key in self.control_attributes['textures'] \
+            else self.control_attributes['attributes']
 
         if main_key.endswith("SLIDERDATA"):
             main_key = "SLIDERDATA"
+        if main_key == "ENTRYFIELDDATA":
+            main_key = "TEXTENTRYDATA"
 
         for d in list_dict[main_key]:
             if sub_key in d and d[sub_key] != value:
                 d[sub_key] = value
-                # self.main_window.update_modified_state(True)
+                self.update_modified_state(True)
+
 
     def update_texture_property(self, main_key, sub_key, image, value=None):
-        list_dict = self.control_attributes.textures
+        list_dict = self.control_attributes['textures']
 
         for d in list_dict[main_key]:
-            if 'image' in d and d['image'] == image and sub_key in d and d[sub_key] != value:
+            if 'IMAGE' in d and d['IMAGE'] == image and sub_key in d and d[sub_key] != value:
                 d[sub_key] = value
-                # self.main_window.update_modified_state(True)
+                self.update_modified_state(True)
 
     def clear(self):
         """Clear all widgets from the layout."""
@@ -291,8 +295,8 @@ def create_inner_section(title, parent, section_manager, object_name):
 def filter_empty_properties(properties_list):
     return [
         prop for prop in properties_list if not (
-                'image' in prop and prop['image'] == 'NoImage'
-                and 'color' in prop and prop['color'] == (255, 255, 255, 0)
+                'IMAGE' in prop and prop['IMAGE'] == 'NoImage'
+                and 'COLOR' in prop and prop['COLOR'] == (255, 255, 255, 0)
                 and 'BORDERCOLOR' in prop and prop['BORDERCOLOR'] == (255, 255, 255, 0)
         )
     ]

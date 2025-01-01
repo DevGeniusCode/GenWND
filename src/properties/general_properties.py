@@ -278,13 +278,13 @@ class GeneralForm(QWidget):
         self.bottom_right_y_spinbox.setMaximum(self.creation_resolution_height)
 
     def update_key_property(self, main_key, value=None):
-        old_value = getattr(self.general_data, main_key, None)
+        old_value = self.general_data[main_key]
         if old_value != value:
-            setattr(self.general_data, main_key, value)
+            self.general_data[main_key] = value
             self.main_window.update_modified_state(True)
 
     def update_sub_property(self, main_key, sub_key, value=None):
-        attr = getattr(self.general_data, main_key)
+        attr = self.general_data[main_key]
         if isinstance(attr, dict):
             if sub_key in attr:
                 old_value = attr[sub_key]

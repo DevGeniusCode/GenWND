@@ -1,6 +1,194 @@
 from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout, QMessageBox, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QDrag, QCursor
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice
+
+
+class ObjectTreeModel(QStandardItemModel):
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        self.parser_windows = []  # Store the original windows data
+
+    def set_parser_windows(self, windows):
+        self.parser_windows = windows
+
+    def mimeTypes(self):
+        return ['application/x-window-object']
+
+    def mimeData(self, indexes):
+        if not indexes:
+            return None
+        item = self.itemFromIndex(indexes[0])
+        selected_window = item.data()
+        message = f"startDrag - selected item: {selected_window.properties.get('NAME')}"
+        self.main_window.log_manager.log(message)
+
+        mime_data = QMimeData()
+        data = QByteArray()
+        stream = QDataStream(data, QDataStream.OpenModeFlag.WriteOnly)
+        encoded_uuid = selected_window.window_uuid.encode('utf-8')
+        stream.writeBytes(encoded_uuid)
+        mime_data.setData('application/x-window-object', data)
+        return mime_data
+
+    def flags(self, index):
+        default_flags = super().flags(index)
+        if index.isValid():
+            return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
+        else:
+            return default_flags | Qt.ItemFlag.ItemIsDropEnabled
+
+    def dropMimeData(self, data, action, row, column, parent):
+        if not data.hasFormat('application/x-window-object'):
+            return False
+        stream = QDataStream(data.data('application/x-window-object'), QIODevice.OpenModeFlag.ReadOnly)
+        source_window_uuid_bytes = stream.readBytes()
+        source_window_uuid = source_window_uuid_bytes.decode('utf-8')
+
+        # Get drop target
+        if parent and parent.isValid():
+            drop_item = self.itemFromIndex(parent)
+            drop_window = drop_item.data()
+            if not drop_window:
+                self.main_window.log_manager.log(f"dropEvent - no drop window, cannot reorder", level="WARNING")
+                drop_window = None  # to be root
+                self.main_window.log_manager.log(f"dropEvent - adding to root as fallback")
+
+            # Check if the drop window are parent (USER)
+            if drop_window and drop_window.properties.get('WINDOWTYPE') != 'USER':
+                self.main_window.log_manager.log(f"dropEvent - drop window not user, adding as sibling", level="INFO")
+                source_parent = self._find_window_parent(self.parser_windows, drop_window.window_uuid)
+                if source_parent:
+                    drop_window = source_parent
+                else:
+                    drop_window = None  # to be root
+        else:
+            drop_window = None  # root
+
+        if drop_window:
+            self.main_window.log_manager.log(f"dropEvent - source window: {drop_window.properties.get('NAME')}")
+        else:
+            self.main_window.log_manager.log(f"dropEvent - adding to root")
+
+        self.reorder_windows(source_window_uuid, drop_window, row)
+
+        self.main_window.update_modified_state(True)
+        self.main_window.object_tree.update_buttons_state()
+        self.clear()
+        self.main_window.object_tree._populate_tree(self.parser_windows, self)
+        return True
+
+    def reorder_windows(self, source_window_uuid, drop_window, drop_row):
+        """Reorder the windows data based on drag and drop"""
+        source_window = self._find_window_by_uuid(self.parser_windows, source_window_uuid)
+        if not source_window:
+            self.main_window.log_manager.log(f"reorder_windows - no source window of uuid {source_window_uuid}",
+                                             level="WARNING")
+            return
+
+        # Remove the window from its parent
+        source_parent_children = self._find_window_parent_children(self.parser_windows, source_window_uuid)
+        if source_parent_children:
+            source_parent_children.remove(source_window)
+            self.main_window.log_manager.log(f"reorder_windows - removed from parent")
+            # Reset the list if its empty
+            if not source_parent_children:
+                source_parent = self._find_window_parent(self.parser_windows, source_window_uuid)
+                if source_parent:
+                    source_parent.pop('children', None)
+        # Add to the new parent
+        if drop_window:
+            if not hasattr(drop_window, 'children'):
+                drop_window.children = []
+            # Insert to specific index
+            drop_window.children.insert(drop_row, source_window)
+            self.main_window.log_manager.log(
+                f"reorder_windows - added to new parent: {drop_window.properties.get('NAME')}, index: {drop_row}")
+
+        else:  # Adding to the root
+            self.parser_windows.insert(drop_row, source_window)
+            self.main_window.log_manager.log(f"reorder_windows - added to root at index {drop_row}")
+
+        self.main_window.log_manager.log(f"reorder_windows - reordered")
+
+    def _find_window_by_uuid(self, windows, window_uuid):
+        """Recursive function to find a window by uuid"""
+        for window in windows:
+            if window.window_uuid == window_uuid:
+                return window
+        for window in windows:
+            if hasattr(window, 'children'):
+                found_window = self._find_window_by_uuid(window.children, window_uuid)
+                if found_window:
+                    return found_window
+        return None
+
+    def _find_window_parent_children(self, windows, window_uuid):
+        for window in windows:
+            if hasattr(window, 'children'):
+                for child in window.children:
+                    if child.window_uuid == window_uuid:
+                        self.main_window.log_manager.log(
+                            f"parent found: {window.properties.get('NAME')}, uuid: {window.window_uuid}")
+                        return window.children
+        for window in windows:
+            if hasattr(window, 'children'):
+                found_children = self._find_window_parent_children(window.children, window_uuid)
+                if found_children:
+                    return found_children
+        return None
+
+    def _find_window_parent(self, windows, window_uuid):
+        for window in windows:
+            if hasattr(window, 'children'):
+                for child in window.children:
+                    if child.window_uuid == window_uuid:
+                        self.main_window.log_manager.log(f"parent found: {window.properties.get('NAME')},"
+                                                         f" uuid: {window.window_uuid}")
+                        return window
+        for window in windows:
+            if hasattr(window, 'children'):
+                found_parent = self._find_window_parent(window.children, window_uuid)
+                if found_parent:
+                    return found_parent
+        return None
+
+    def is_ancestor(self, potential_ancestor, potential_descendant):
+        """
+        Check if potential_descendant is a descendant of potential_ancestor
+        or they are the same object
+        """
+        if potential_ancestor == potential_descendant:
+            return True
+
+        def _recursive_check(parent, descendant):
+            if hasattr(parent, 'children'):
+                for child in parent.children:
+                    if child == descendant:
+                        return True
+                    if _recursive_check(child, descendant):
+                        return True
+            return False
+
+        return _recursive_check(potential_ancestor, potential_descendant)
+
+    def is_valid_drop(self, event):
+        drop_index = self.main_window.object_tree.tree_view.indexAt(event.position().toPoint())
+        drop_item = self.itemFromIndex(drop_index)
+
+        if drop_item:
+            drop_window = drop_item.data()
+            if drop_window:
+                data = event.mimeData().data('application/x-window-object')
+                stream = QDataStream(data, QIODevice.OpenModeFlag.ReadOnly)
+                source_window_uuid_bytes = stream.readBytes()
+                source_window_uuid = source_window_uuid_bytes.decode('utf-8')
+                source_window = self._find_window_by_uuid(self.parser_windows, source_window_uuid)
+                if source_window and source_window.properties.get('WINDOWTYPE') == 'USER':
+                    if self.is_ancestor(source_window, drop_window) or self.is_ancestor(drop_window, source_window):
+                        return False
+        return True
+
 
 class ObjectTree(QWidget):
     # Signal to notify when an object is selected
@@ -10,7 +198,7 @@ class ObjectTree(QWidget):
         super().__init__(parent)
         self.main_window = main_window
 
-        self.model = QStandardItemModel()
+        self.model = ObjectTreeModel(main_window)
         self.model.setHorizontalHeaderLabels(["Object Tree"])
 
         # Create the tree view
@@ -59,14 +247,6 @@ class ObjectTree(QWidget):
         self.save_button.clicked.connect(self.on_save_button_clicked)
         self.reset_button.clicked.connect(self.on_reset_button_clicked)
         self.update_buttons_state()
-        self.parser_windows = []  # Store the original windows data
-
-        # **NEW:** Replace the default event handlers:
-        self.tree_view.startDrag = self.startDrag
-        self.tree_view.dragEnterEvent = self.dragEnterEvent
-        self.tree_view.dragMoveEvent = self.dragMoveEvent
-        self.tree_view.dropEvent = self.dropEvent
-        self.tree_view.dragLeaveEvent = self.dragLeaveEvent # new
 
     def load_objects(self, windows):
         """Load the windows into the tree view."""
@@ -78,7 +258,7 @@ class ObjectTree(QWidget):
         self.save_button.setVisible(True)
         self.reset_button.setVisible(True)
         self.tree_view.setVisible(True)
-        self.parser_windows = windows
+        self.model.set_parser_windows(windows)
         self.model.clear()
         self._populate_tree(windows, self.model)
 
@@ -165,215 +345,34 @@ class ObjectTree(QWidget):
             self.save_button.setEnabled(False)
             self.reset_button.setEnabled(False)
 
-    def startDrag(self, supportedActions: Qt.DropAction) -> None:
-        # Get the selected item
-        selected_indexes = self.tree_view.selectedIndexes()
-        if not selected_indexes:
-            return
-
-        selected_item = self.model.itemFromIndex(selected_indexes[0])
-        selected_window = selected_item.data()
-        #log
-        message = f"startDrag - selected item: {selected_window.properties.get('NAME')}"
-        self.main_window.log_manager.log(message)
-
-        # Convert window data to byte array for drag and drop
-        mime_data = QMimeData()
-        data = QByteArray()
-        stream = QDataStream(data, QDataStream.OpenModeFlag.WriteOnly)
-        encoded_uuid = selected_window.window_uuid.encode('utf-8')
-        stream.writeBytes(encoded_uuid)
-
-        mime_data.setData('application/x-window-object', data)
-        drag = QDrag(self.tree_view)
-        drag.setMimeData(mime_data)
-        drag.exec(supportedActions)
-
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat('application/x-window-object'):
-            event.acceptProposedAction()
-            drop_index = self.tree_view.indexAt(event.position().toPoint())
-            drop_item = self.model.itemFromIndex(drop_index)
-            if drop_item:
-                drop_window = drop_item.data()
-                if drop_window:
-                   data = event.mimeData().data('application/x-window-object')
-                   stream = QDataStream(data, QIODevice.OpenModeFlag.ReadOnly)
-
-                   source_window_uuid_bytes = stream.readBytes()
-                   source_window_uuid = source_window_uuid_bytes.decode('utf-8')
-
-                   source_window = self._find_window_by_uuid(self.parser_windows, source_window_uuid)
-                   if source_window and source_window.properties.get('WINDOWTYPE') == 'USER':
-                       if self.is_ancestor(source_window, drop_window) or self.is_ancestor(drop_window, source_window) :
-                           event.ignore()
-                           self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ForbiddenCursor))
-                           return
+            if self.model.is_valid_drop(event):
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+                self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ForbiddenCursor))
         else:
             event.ignore()
         self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-        event.acceptProposedAction()
+        super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
         if event.mimeData().hasFormat('application/x-window-object'):
-            drop_index = self.tree_view.indexAt(event.position().toPoint())
-            drop_item = self.model.itemFromIndex(drop_index)
-
-            if drop_item:
-                 drop_window = drop_item.data()
-                 if drop_window:
-                    data = event.mimeData().data('application/x-window-object')
-                    stream = QDataStream(data, QIODevice.OpenModeFlag.ReadOnly)
-
-                    source_window_uuid_bytes = stream.readBytes()
-                    source_window_uuid = source_window_uuid_bytes.decode('utf-8')
-
-                    source_window = self._find_window_by_uuid(self.parser_windows, source_window_uuid)
-                    if source_window and source_window.properties.get('WINDOWTYPE') == 'USER':
-                        if self.is_ancestor(source_window, drop_window) or self.is_ancestor(drop_window, source_window):
-                            event.ignore()
-                            self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ForbiddenCursor))
-                            return
+            if self.model.is_valid_drop(event):
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+                self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ForbiddenCursor))
         else:
             event.ignore()
         self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))
-        event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor)) # Reset the cursor on drop
-        if event.mimeData().hasFormat('application/x-window-object'):
-            data = event.mimeData().data('application/x-window-object')
-            stream = QDataStream(data, QIODevice.OpenModeFlag.ReadOnly)
-
-            source_window_uuid_bytes = stream.readBytes()
-            source_window_uuid = source_window_uuid_bytes.decode('utf-8')
-
-            # Get drop target
-            drop_index = self.tree_view.indexAt(event.position().toPoint())
-            drop_item = self.model.itemFromIndex(drop_index)
-
-            if drop_item:
-                drop_window = drop_item.data()
-                if not drop_window:
-                    self.main_window.log_manager.log(f"dropEvent - no drop window, cannot reorder", level="WARNING")
-                    drop_window = None # to be root
-                    self.main_window.log_manager.log(f"dropEvent - adding to root as fallback")
-
-                # Check if the drop window are parent (USER)
-                if drop_window and drop_window.properties.get('WINDOWTYPE') != 'USER':
-                    self.main_window.log_manager.log(f"dropEvent - drop window not user, adding as sibling", level="INFO")
-                    source_parent = self._find_window_parent(self.parser_windows, drop_window.window_uuid)
-                    if source_parent:
-                        drop_window = source_parent
-                    else:
-                         drop_window = None # to be root
-            else:  # dropped on the root
-                drop_window = None  # root
-
-            if drop_window:
-                 self.main_window.log_manager.log(f"dropEvent - source window: {drop_window.properties.get('NAME')}")
-            else:
-                 self.main_window.log_manager.log(f"dropEvent - adding to root")
-
-            self.reorder_windows(source_window_uuid, drop_window)
-
-            event.acceptProposedAction()
-            self.main_window.update_modified_state(True)
-            self.update_buttons_state()
-            self.model.clear()
-            self._populate_tree(self.parser_windows, self.model)
-
-    def reorder_windows(self, source_window_uuid, drop_window):
-
-        """Reorder the windows data based on drag and drop"""
-        source_window = self._find_window_by_uuid(self.parser_windows, source_window_uuid)
-        if not source_window:
-            self.main_window.log_manager.log(f"reorder_windows - no source window of uuid {source_window_uuid}",
-                                             level="WARNING")
-            return
-
-        # Remove the window from its parent
-        source_parent_children = self._find_window_parent_children(self.parser_windows, source_window_uuid)
-        if source_parent_children:
-            source_parent_children.remove(source_window)
-            self.main_window.log_manager.log(f"reorder_windows - removed from parent")
-            # Reset the list if its empty
-            if not source_parent_children:
-                source_parent = self._find_window_parent(self.parser_windows, source_window_uuid)
-                if source_parent:
-                    source_parent.pop('children', None)
-        # Add to the new parent
-        if drop_window:
-            if not hasattr(drop_window, 'children'):
-                drop_window.children = []
-            drop_window.children.append(source_window)
-            self.main_window.log_manager.log(f"reorder_windows - added to new parent: {drop_window.properties.get('NAME')}")
-
-        else:  # Adding to the root
-            self.parser_windows.append(source_window)
-            self.main_window.log_manager.log(f"reorder_windows - added to root")
-
-        self.main_window.log_manager.log(f"reorder_windows - reordered")
-
-    def _find_window_by_uuid(self, windows, window_uuid):
-        """Recursive function to find a window by uuid"""
-        for window in windows:
-            if window.window_uuid == window_uuid:
-                return window
-        for window in windows:
-            if hasattr(window, 'children'):
-                found_window = self._find_window_by_uuid(window.children, window_uuid)
-                if found_window:
-                    return found_window
-        return None
-
-    def _find_window_parent_children(self, windows, window_uuid):
-        for window in windows:
-            if hasattr(window, 'children'):
-                for child in window.children:
-                    if child.window_uuid == window_uuid:
-                        self.main_window.log_manager.log(f"parent found: {window.properties.get('NAME')}, uuid: {window.window_uuid}")
-                        return window.children
-        for window in windows:
-            if hasattr(window, 'children'):
-                found_children = self._find_window_parent_children(window.children, window_uuid)
-                if found_children:
-                    return found_children
-        return None
-
-    def _find_window_parent(self, windows, window_uuid):
-        for window in windows:
-            if hasattr(window, 'children'):
-                for child in window.children:
-                    if child.window_uuid == window_uuid:
-                        self.main_window.log_manager.log(f"parent found: {window.properties.get('NAME')},"
-                                                         f" uuid: {window.window_uuid}")
-                        return window
-        for window in windows:
-            if hasattr(window, 'children'):
-                found_parent = self._find_window_parent(window.children, window_uuid)
-                if found_parent:
-                    return found_parent
-        return None
-
-    def is_ancestor(self, potential_ancestor, potential_descendant):
-        """
-        Check if potential_descendant is a descendant of potential_ancestor
-        or they are the same object
-        """
-        if potential_ancestor == potential_descendant:
-            return True
-
-        def _recursive_check(parent, descendant):
-            if hasattr(parent, 'children'):
-                 for child in parent.children:
-                    if child == descendant:
-                       return True
-                    if _recursive_check(child, descendant):
-                        return True
-            return False
-
-        return _recursive_check(potential_ancestor, potential_descendant)
+        super().dragMoveEvent(event)
 
     def dragLeaveEvent(self, event):
-      self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))  # Reset the cursor on drop
+        super().dropEvent(event)  # trigger model drop event

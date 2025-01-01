@@ -82,7 +82,7 @@ class ControlForm(QWidget):
             'LISTBOXENABLEDSLIDERDRAWDATA', 'LISTBOXDISABLEDSLIDERDRAWDATA', 'LISTBOXHILITESLIDERDRAWDATA',
             'SLIDERTHUMBENABLEDDRAWDATA', 'SLIDERTHUMBDISABLEDDRAWDATA', 'SLIDERTHUMBHILITEDRAWDATA'
         ]
-        textures = {key: filter_empty_properties(properties.textures[key]) for key in texture_keys}
+        textures = {key: filter_empty_properties(properties['textures'][key]) for key in texture_keys}
         self.create_textures_for_control(textures)
 
     def create_combobox_attributes(self, properties):

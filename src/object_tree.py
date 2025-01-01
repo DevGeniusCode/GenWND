@@ -1,6 +1,11 @@
-from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout, QMessageBox, QPushButton, QHBoxLayout, QWidget
+import os
+import uuid
+
+from PyQt6.QtWidgets import QTreeView, QLabel, QVBoxLayout, QMessageBox, QPushButton, QHBoxLayout, QWidget, QMenu
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice
+
+from src.window.window_properties import ObjectFactory
 
 
 class ObjectTreeModel(QStandardItemModel):
@@ -247,6 +252,8 @@ class ObjectTree(QWidget):
         self.save_button.clicked.connect(self.on_save_button_clicked)
         self.reset_button.clicked.connect(self.on_reset_button_clicked)
         self.update_buttons_state()
+        self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree_view.customContextMenuRequested.connect(self.show_context_menu)
 
     def load_objects(self, windows):
         """Load the windows into the tree view."""
@@ -376,3 +383,88 @@ class ObjectTree(QWidget):
     def dropEvent(self, event):
         self.tree_view.viewport().setCursor(QCursor(Qt.CursorShape.ArrowCursor))  # Reset the cursor on drop
         super().dropEvent(event)  # trigger model drop event
+
+    def show_context_menu(self, position):
+        """
+        Create and show the context menu.
+        :param position: The position where the user clicked.
+        """
+
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete")
+        add_action = menu.addMenu("Add New")  # new menu for adding
+
+        factory = ObjectFactory()
+        for object_type in factory.control_classes:
+            add_action.addAction(object_type)
+
+        selected_index = self.tree_view.indexAt(position)  # Get the selected index of the item
+        selected_item = self.model.itemFromIndex(selected_index) if selected_index.isValid() else None
+        action = menu.exec(self.tree_view.viewport().mapToGlobal(position))  # Show the context menu
+
+        if action == delete_action:
+            if selected_item:
+                self.delete_selected_item(selected_item)
+        elif action and action.parent() == add_action:
+            new_object_type = action.text()
+            if selected_item:
+                self.add_new_control(selected_item, new_object_type)
+            else:
+                self.add_new_control(None, new_object_type)
+
+    def add_new_control(self, parent_item, new_object_type):
+        """Add a new control to the tree at the given level"""
+        window_uuid = str(uuid.uuid4())  # generate a new uuid
+        factory = ObjectFactory()  # Use the ObjectFactory to create the new control object
+        file_name = os.path.basename(self.main_window.selected_file)
+        new_object = factory.create_object(new_object_type, window_uuid=window_uuid,
+                                           file_name=file_name)
+        if parent_item:
+            parent_window = parent_item.data()
+            if parent_window.properties.get('WINDOWTYPE') == 'USER':
+                if hasattr(parent_window, "children"):
+                    parent_window.children.append(new_object)
+                else:
+                     parent_window.children = [new_object] # add a children to parent that has none
+                self.main_window.log_manager.log(f"add_new_control -"
+                                                 f" added as child {new_object.properties.get('NAME')},"
+                                                 f" to parent: {parent_window.properties.get('NAME')}")
+
+            else: #add as a sibling
+                parent = self.model._find_window_parent(self.model.parser_windows, parent_window.window_uuid)
+                if parent:
+                   index = parent.children.index(parent_window)
+                   parent.children.insert(index + 1, new_object)
+                   self.main_window.log_manager.log(f"add_new_control -"
+                                                    f" added as sibling  {new_object.properties.get('NAME')},"
+                                                    f" after: {parent_window.properties.get('NAME')}")
+                else:
+                    index = self.model.parser_windows.index(parent_window)
+                    self.model.parser_windows.insert(index + 1, new_object)
+                    self.main_window.log_manager.log(f"add_new_control -"
+                                                     f" added to root sibling  {new_object.properties.get('NAME')},"
+                                                     f" after: {parent_window.properties.get('NAME')}")
+        else:
+            self.model.parser_windows.append(new_object)  # add new object as root
+            self.main_window.log_manager.log(f"add_new_control - added to root: {new_object.properties.get('NAME')}")
+        self.main_window.update_modified_state(True)
+        self.update_buttons_state()
+        self.model.clear()
+        self._populate_tree(self.model.parser_windows, self.model)
+
+    def delete_selected_item(self, item):
+        """Remove the selected item from the tree and data source."""
+        selected_window = item.data()
+        if selected_window:
+            if isinstance(self.model.parser_windows, list):
+                # Remove the window object, or a child from a list of children
+                parent = self.model._find_window_parent(self.model.parser_windows, selected_window.window_uuid)
+                if parent:
+                    if hasattr(parent, "children"):
+                        parent.children.remove(selected_window)
+                else:
+                    self.model.parser_windows.remove(selected_window)
+            self.main_window.update_modified_state(True)
+            self.update_buttons_state()
+            self.model.clear()
+            self._populate_tree(self.model.parser_windows, self.model)

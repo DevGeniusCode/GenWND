@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QMenuBar, \
     QFileDialog, QPushButton, QToolBar, QSplitter, QLabel, QVBoxLayout, QStatusBar, QMessageBox
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import Qt
 import os
 import traceback
@@ -17,7 +17,8 @@ from log_manager import LogManager
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("WND Editor")
+        self.setWindowTitle("GenWND")
+        self.setWindowIcon(QIcon('resources/icons/GenWND.ico'))
         self.resize(1200, 800)
         self.default_directory = EnvironmentManager('resources/user_config.json').get('default_directory') or os.path.expanduser("~/Documents")
 

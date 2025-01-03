@@ -64,7 +64,8 @@ class ControlForm(QWidget):
         self.create_default_textures(properties)
 
     def create_statictext_attributes(self, properties):
-        self.create_attributes_for_control(properties['attributes']['STATICTEXTDATA'][0])
+        statictext_data = normalize_boolean_values(properties['attributes']['STATICTEXTDATA'], ['CENTERED'])
+        self.create_attributes_for_control(statictext_data)
         self.create_default_textures(properties)
 
     def create_progressbar_attributes(self, properties):
@@ -219,6 +220,8 @@ class ControlForm(QWidget):
             main_key = "SLIDERDATA"
         if main_key == "ENTRYFIELDDATA":
             main_key = "TEXTENTRYDATA"
+        if main_key == 'SCROLLLISTBOXDATA':
+            main_key = "LISTBOXDATA"
 
         for d in list_dict[main_key]:
             if sub_key in d and d[sub_key] != value:

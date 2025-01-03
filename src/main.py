@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         """Handles selection of a file from the file tree."""
         if self.is_modified:
             reply = QMessageBox.question(self, 'Unsaved Changes',
-                                         "You have unsaved aaaaaaaaaaaaaaaaachanges. Do you want to save before selecting a new file?",
+                                         "You have unsaved changes. Do you want to save before selecting a new file?",
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
             if reply == QMessageBox.StandardButton.Yes:
                 self.save_file()

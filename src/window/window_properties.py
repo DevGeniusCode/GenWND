@@ -340,7 +340,7 @@ def parse_window_properties(lines_iter, window_uuid, file_name):
                     elif tag.endswith("DATA"):
                         attributes[tag] = parse_attributes_properties(lines_iter)
                     else:
-                        raise ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
+                        ErrorHandler.raise_error(lines_iter.file_path, lines_iter.line_number, line,
                                                        f"Unknown tag: {tag}", error_level=2)
 
             # After processing, add the tag to the list of encountered tags

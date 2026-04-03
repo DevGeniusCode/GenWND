@@ -255,6 +255,27 @@ class ObjectTree(QWidget):
         self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_view.customContextMenuRequested.connect(self.show_context_menu)
 
+    def select_item_by_uuid(self, uuid):
+        """Recursively search for the item by UUID and select it in the tree."""
+
+        def search_item(parent_item):
+            for row in range(parent_item.rowCount()):
+                child = parent_item.child(row)
+                window = child.data()
+                if window and getattr(window, 'window_uuid', None) == uuid:
+                    return child
+                result = search_item(child)
+                if result:
+                    return result
+            return None
+
+        # Search starting from the root of the model
+        item = search_item(self.model.invisibleRootItem())
+        if item:
+            # Selecting the index will automatically trigger on_item_selected
+            self.tree_view.setCurrentIndex(item.index())
+            self.tree_view.scrollTo(item.index())
+
     def load_objects(self, windows):
         """Load the windows into the tree view."""
         if not windows:

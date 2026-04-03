@@ -292,6 +292,10 @@ class GeneralForm(QWidget):
                     attr[sub_key] = value
                     self.main_window.update_modified_state(True)
 
+                    # Push property changes back to the canvas
+                    if main_key == 'SCREENRECT' and hasattr(self.main_window, 'visual_preview'):
+                        self.main_window.visual_preview.update_item_geometry_from_data(self.main_window.selected_object)
+
     def update_statuses(self):
         active_flags = []
 

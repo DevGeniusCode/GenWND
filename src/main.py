@@ -98,9 +98,13 @@ class MainWindow(QMainWindow):
         self.property_editor = PropertyEditor(self, main_window=self)
         # self.property_editor.setFixedWidth(330)
 
-        # --- NEW: VISUAL PREVIEW INITIALIZATION ---
+        # VISUAL PREVIEW INITIALIZATION
         self.visual_preview = VisualPreview(self)
         self.visual_preview.setMinimumWidth(300)
+
+        # connection lines:
+        self.visual_preview.item_selected_signal.connect(self.object_tree.select_item_by_uuid)
+        self.visual_preview.item_moved_signal.connect(self.handle_canvas_item_moved)
 
         # Toggle Buttons for object tree and property editor
         self.toggle_object_tree_button = QPushButton("Toggle Objects", self)
@@ -153,9 +157,41 @@ class MainWindow(QMainWindow):
         self.selected_object = window_object
         self.update_status_bar()
         self.load_object_property()
+
+        # Tell Canvas to highlight
+        if hasattr(self, 'visual_preview') and window_object:
+            self.visual_preview.select_item(window_object.window_uuid)
+
         # Log the selected object
         if self.selected_object:
             self.log_manager.log(f"Object selected: {window_object.properties.get('WINDOWTYPE')} - {window_object.properties.get('NAME', 'Unnamed')}", level="INFO")
+
+    def handle_canvas_item_moved(self, window, ul, br):
+        """Triggered when an item is dragged on the visual preview."""
+        # 1. Update underlying data
+        if 'SCREENRECT' not in window.properties:
+            window.properties['SCREENRECT'] = {}
+        window.properties['SCREENRECT']['UPPERLEFT'] = list(ul)
+        window.properties['SCREENRECT']['BOTTOMRIGHT'] = list(br)
+
+        # 2. Trigger save state
+        self.update_modified_state(True)
+
+        # 3. If the dragged item is currently active in the Property Editor, update the spinboxes
+        if self.selected_object and getattr(self.selected_object, 'window_uuid', None) == window.window_uuid:
+            if hasattr(self.property_editor, 'general_properties'):
+                gp = self.property_editor.general_properties
+
+                # Block signals temporarily so updating spinboxes doesn't trigger property sync back to canvas
+                for spinbox, val in [
+                    (gp.upper_left_x_spinbox, ul[0]),
+                    (gp.upper_left_y_spinbox, ul[1]),
+                    (gp.bottom_right_x_spinbox, br[0]),
+                    (gp.bottom_right_y_spinbox, br[1])
+                ]:
+                    spinbox.blockSignals(True)
+                    spinbox.setValue(val)
+                    spinbox.blockSignals(False)
 
     def select_file(self, file_path):
         """Handles selection of a file from the file tree."""

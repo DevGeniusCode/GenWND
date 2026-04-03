@@ -198,6 +198,7 @@ class ObjectTreeModel(QStandardItemModel):
 class ObjectTree(QWidget):
     # Signal to notify when an object is selected
     object_selected_signal = pyqtSignal(object)
+    visibility_changed_signal = pyqtSignal(str, bool)
 
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
@@ -209,6 +210,11 @@ class ObjectTree(QWidget):
         # Create the tree view
         self.tree_view = QTreeView()
         self.tree_view.setModel(self.model)
+
+        # Guard flag for checkbox recursion
+        self._is_updating_checks = False
+        self.model.itemChanged.connect(self.on_item_changed) # Listen for check toggles
+
 
         # Enable drag and drop
         self.tree_view.setDragEnabled(True)
@@ -287,8 +293,12 @@ class ObjectTree(QWidget):
         self.reset_button.setVisible(True)
         self.tree_view.setVisible(True)
         self.model.set_parser_windows(windows)
+
+        # Temporarily block checkbox signals while populating
+        self._is_updating_checks = True
         self.model.clear()
         self._populate_tree(windows, self.model)
+        self._is_updating_checks = False
 
     def _populate_tree(self, windows, parent_item):
         """
@@ -299,10 +309,47 @@ class ObjectTree(QWidget):
         for window in windows:
             item = QStandardItem(f"{window.properties.get('WINDOWTYPE')} - {window.properties.get('NAME', 'Unnamed')}")
             item.setData(window)
+
+            # Make the item checkable and default to checked (visible)
+            item.setCheckable(True)
+            item.setCheckState(Qt.CheckState.Checked)
+
             parent_item.appendRow(item)
             if hasattr(window, 'children'):
                 self._populate_tree(window.children, item)
         self.tree_view.expandAll()
+
+    def on_item_changed(self, item):
+        """Triggered when a checkbox in the Object Tree is clicked."""
+        if self._is_updating_checks:
+            return
+
+        self._is_updating_checks = True  # Prevent infinite recursion
+
+        is_checked = item.checkState() == Qt.CheckState.Checked
+
+        # Emit signal for the clicked item
+        window = item.data()
+        if window and hasattr(window, 'window_uuid'):
+            self.visibility_changed_signal.emit(window.window_uuid, is_checked)
+
+        # Recursively update all children to match the parent's visibility
+        self._update_children_checks(item, item.checkState())
+
+        self._is_updating_checks = False
+
+    def _update_children_checks(self, parent_item, check_state):
+        """Recursively applies the check state to all child items."""
+        for row in range(parent_item.rowCount()):
+            child = parent_item.child(row)
+            child.setCheckState(check_state)
+
+            window = child.data()
+            if window and hasattr(window, 'window_uuid'):
+                is_checked = check_state == Qt.CheckState.Checked
+                self.visibility_changed_signal.emit(window.window_uuid, is_checked)
+
+            self._update_children_checks(child, check_state)
 
     def on_item_selected(self, selected, deselected):
         """

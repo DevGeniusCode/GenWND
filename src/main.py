@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         # VISUAL PREVIEW INITIALIZATION
         self.visual_preview = VisualPreview(self)
         self.visual_preview.setMinimumWidth(300)
+        self.object_tree.visibility_changed_signal.connect(self.visual_preview.set_item_visibility)
 
         # connection lines:
         self.visual_preview.item_selected_signal.connect(self.object_tree.select_item_by_uuid)

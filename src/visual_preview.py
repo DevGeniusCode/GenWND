@@ -181,28 +181,13 @@ class PreviewGraphicsView(QGraphicsView):
 
     def set_show_grid(self, show):
         self.show_grid = show
-        self.scene().invalidate(self.sceneRect(), QGraphicsScene.SceneLayer.BackgroundLayer)
+        # MODIFIED: Invalidate Foreground instead of Background
+        self.scene().invalidate(self.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
         self.viewport().update()
 
-    def set_zoom(self, level):
-        self._zoom_level = max(10, min(500, level))  # Restrict zoom between 10% and 500%
-        factor = self._zoom_level / 100.0
-
-        self.setTransform(self.transform().fromScale(factor, factor))
-        self.zoom_changed.emit(self._zoom_level)
-
-    def wheelEvent(self, event):
-        """Allows mouse-wheel zooming."""
-        angle = event.angleDelta().y()
-        if angle > 0:
-            self.set_zoom(self._zoom_level + 10)
-        elif angle < 0:
-            self.set_zoom(self._zoom_level - 10)
-        event.accept()
-
-    def drawBackground(self, painter, rect):
-        """Draws the standard background and the optional grid."""
-        super().drawBackground(painter, rect)
+    def drawForeground(self, painter, rect):
+        """NEW: Draws the grid on top of all items."""
+        super().drawForeground(painter, rect)
 
         if not self.show_grid:
             return
@@ -227,6 +212,30 @@ class PreviewGraphicsView(QGraphicsView):
         pen.setStyle(Qt.PenStyle.DotLine)
         painter.setPen(pen)
         painter.drawLines(lines)
+
+    def set_zoom(self, level):
+        self._zoom_level = max(10, min(500, level))  # Restrict zoom between 10% and 500%
+        factor = self._zoom_level / 100.0
+
+        self.setTransform(self.transform().fromScale(factor, factor))
+        self.zoom_changed.emit(self._zoom_level)
+
+    def wheelEvent(self, event):
+        """Allows mouse-wheel zooming ONLY when Ctrl is pressed. Otherwise, pan."""
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            angle = event.angleDelta().y()
+            if angle > 0:
+                self.set_zoom(self._zoom_level + 10)
+            elif angle < 0:
+                self.set_zoom(self._zoom_level - 10)
+            event.accept()
+        else:
+            # Default behavior (vertical/horizontal scroll panning)
+            super().wheelEvent(event)
+
+    def drawBackground(self, painter, rect):
+        """Draws the standard background and the optional grid."""
+        super().drawBackground(painter, rect)
 
 class VisualPreview(QWidget):
     item_selected_signal = pyqtSignal(str)
@@ -460,6 +469,15 @@ class VisualPreview(QWidget):
         self.scene.setSceneRect(-100, -100, res_w + 200, res_h + 200)
 
         self._render_windows(windows, depth=1)
+
+    def set_item_visibility(self, uuid, is_visible):
+        """Toggles the visibility of a graphics item based on the Object Tree toggle."""
+        if uuid in self.items_map:
+            self.items_map[uuid].setVisible(is_visible)
+
+            # Deselect the item if it gets hidden to prevent weird floating handles
+            if not is_visible:
+                self.items_map[uuid].setSelected(False)
 
     def _render_windows(self, windows, depth):
         for window in windows:

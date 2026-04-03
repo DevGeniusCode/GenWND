@@ -13,6 +13,7 @@ from src.environment_manager import EnvironmentManager
 from src.setting import SettingsWidget
 from src.window.wnd_parser import WndParser
 from log_manager import LogManager
+from visual_preview import VisualPreview
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -97,6 +98,10 @@ class MainWindow(QMainWindow):
         self.property_editor = PropertyEditor(self, main_window=self)
         # self.property_editor.setFixedWidth(330)
 
+        # --- NEW: VISUAL PREVIEW INITIALIZATION ---
+        self.visual_preview = VisualPreview(self)
+        self.visual_preview.setMinimumWidth(300)
+
         # Toggle Buttons for object tree and property editor
         self.toggle_object_tree_button = QPushButton("Toggle Objects", self)
         self.toggle_object_tree_button.clicked.connect(self.toggle_object_tree_visibility)
@@ -107,12 +112,16 @@ class MainWindow(QMainWindow):
 
         # Splitter for resizable file tree
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(file_tree_widget)
-        splitter.addWidget(self.object_tree)
-        splitter.addWidget(self.property_editor)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 2)
+        splitter.addWidget(file_tree_widget)    # Index 0
+        splitter.addWidget(self.object_tree)    # Index 1
+        splitter.addWidget(self.visual_preview) # Index 2 (NEW)
+        splitter.addWidget(self.property_editor)# Index 3
+
+        # Adjusted stretch factors to give the Visual Preview the most space
+        splitter.setStretchFactor(0, 1) # File Tree
+        splitter.setStretchFactor(1, 2) # Object Tree
+        splitter.setStretchFactor(2, 4) # Visual Preview (Largest)
+        splitter.setStretchFactor(3, 2) # Property Editor
         splitter.setHandleWidth(10)  # add spacing
 
         # Division into layout structure
@@ -138,6 +147,7 @@ class MainWindow(QMainWindow):
 
         # Enable drag and drop
         self.setAcceptDrops(True)
+
     def select_object(self, window_object):
         """Handles selection of an object from the object tree"""
         self.selected_object = window_object
@@ -166,6 +176,7 @@ class MainWindow(QMainWindow):
     def _select_file(self, file_path):
         """Handles selection of a file from the file tree"""
         self.object_tree.clear()
+        self.visual_preview.clear()
         self.selected_file = file_path
         self.selected_object = None  # disable to display error in status bar
         self.load_wnd_file(file_path)
@@ -180,6 +191,7 @@ class MainWindow(QMainWindow):
         self.selected_object = None
         self.object_tree.clear()
         self.property_editor.clear()
+        self.visual_preview.clear()
 
         self.update_status_bar()  # Update the status bar to reflect that only folder is selected
         self.log_manager.log(f"Folder selected: {folder_path}", level="INFO")
@@ -309,6 +321,7 @@ class MainWindow(QMainWindow):
             self.selected_object = None
             self.property_editor.clear()
             self.object_tree.clear()
+            self.visual_preview.clear()
             self.update_status_bar()
             self.load_wnd_file(file)
             self.default_directory = os.path.dirname(file)
@@ -327,6 +340,9 @@ class MainWindow(QMainWindow):
             # Load the windows into the object tree
             self.object_tree.load_objects(windows)
 
+            # Load windows into the Visual Preview
+            self.visual_preview.load_hierarchy(windows)
+
             self.log_manager.log(f"Loaded objects from file {file_path}", level="INFO")
             self.update_modified_state(False)
 
@@ -336,6 +352,7 @@ class MainWindow(QMainWindow):
             self.object_tree.display_error(error_message)
             self.selected_object = error_message
             self.update_status_bar()
+            self.visual_preview.clear()
 
 
     def load_object_property(self):

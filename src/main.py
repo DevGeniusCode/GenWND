@@ -118,14 +118,18 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(file_tree_widget)    # Index 0
         splitter.addWidget(self.object_tree)    # Index 1
-        splitter.addWidget(self.visual_preview) # Index 2 (NEW)
+        splitter.addWidget(self.visual_preview) # Index 2
         splitter.addWidget(self.property_editor)# Index 3
 
-        # Adjusted stretch factors to give the Visual Preview the most space
-        splitter.setStretchFactor(0, 1) # File Tree
-        splitter.setStretchFactor(1, 2) # Object Tree
-        splitter.setStretchFactor(2, 4) # Visual Preview (Largest)
-        splitter.setStretchFactor(3, 2) # Property Editor
+        # 1. Set the default base widths in pixels
+        splitter.setSizes([180, 180, 800, 350])
+
+        # 2. Set stretch factors. 0 means keep compact, 1 means expand to fill space
+        splitter.setStretchFactor(0, 0) # File Tree (No stretch)
+        splitter.setStretchFactor(1, 0) # Object Tree (No stretch)
+        splitter.setStretchFactor(2, 1) # Visual Preview (Expands!)
+        splitter.setStretchFactor(3, 0) # Property Editor (No stretch)
+
         splitter.setHandleWidth(10)  # add spacing
 
         # Division into layout structure

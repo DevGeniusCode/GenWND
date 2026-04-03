@@ -4,7 +4,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QToolBar, QGraphicsView,
                              QGraphicsItem)
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF
-
+# Add these specific classes to your existing PyQt6.QtWidgets / QtCore imports:
+from PyQt6.QtWidgets import QSlider, QLabel, QHBoxLayout, QPushButton
+from PyQt6.QtCore import QLineF
 
 class WndGraphicsItem(QGraphicsRectItem):
     HANDLE_SIZE = 8
@@ -160,6 +162,71 @@ class WndGraphicsItem(QGraphicsRectItem):
             if pos.x() > rect.width() - hs: return 'R'
         return None
 
+class PreviewGraphicsView(QGraphicsView):
+    """Custom QGraphicsView to handle Zooming and Background Grids."""
+    zoom_changed = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.setBackgroundBrush(QBrush(QColor(30, 30, 30)))
+
+        # Ensures zooming centers on the mouse pointer
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+
+        self.show_grid = False
+        self.grid_size = 20
+        self._zoom_level = 100
+
+    def set_show_grid(self, show):
+        self.show_grid = show
+        self.scene().invalidate(self.sceneRect(), QGraphicsScene.SceneLayer.BackgroundLayer)
+        self.viewport().update()
+
+    def set_zoom(self, level):
+        self._zoom_level = max(10, min(500, level))  # Restrict zoom between 10% and 500%
+        factor = self._zoom_level / 100.0
+
+        self.setTransform(self.transform().fromScale(factor, factor))
+        self.zoom_changed.emit(self._zoom_level)
+
+    def wheelEvent(self, event):
+        """Allows mouse-wheel zooming."""
+        angle = event.angleDelta().y()
+        if angle > 0:
+            self.set_zoom(self._zoom_level + 10)
+        elif angle < 0:
+            self.set_zoom(self._zoom_level - 10)
+        event.accept()
+
+    def drawBackground(self, painter, rect):
+        """Draws the standard background and the optional grid."""
+        super().drawBackground(painter, rect)
+
+        if not self.show_grid:
+            return
+
+        # Calculate grid lines
+        left = int(rect.left()) - (int(rect.left()) % self.grid_size)
+        top = int(rect.top()) - (int(rect.top()) % self.grid_size)
+
+        lines = []
+        x = left
+        while x < rect.right():
+            lines.append(QLineF(x, rect.top(), x, rect.bottom()))
+            x += self.grid_size
+
+        y = top
+        while y < rect.bottom():
+            lines.append(QLineF(rect.left(), y, rect.right(), y))
+            y += self.grid_size
+
+        # Draw the grid with a subtle dashed line
+        pen = QPen(QColor(100, 100, 100, 80), 1)
+        pen.setStyle(Qt.PenStyle.DotLine)
+        painter.setPen(pen)
+        painter.drawLines(lines)
 
 class VisualPreview(QWidget):
     item_selected_signal = pyqtSignal(str)
@@ -168,32 +235,74 @@ class VisualPreview(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # 1. Main Layout
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        # 2. Fixed Top Toolbar
+        # 1. Top Alignment Toolbar
         self.toolbar = QToolBar("Alignment Toolbar", self)
         self.layout.addWidget(self.toolbar)
         self._setup_toolbar()
 
-        # 3. Graphics View & Scene
-        self.view = QGraphicsView(self)
+        # 2. Custom Graphics View & Scene (Replaced standard QGraphicsView)
+        self.view = PreviewGraphicsView(self)
         self.scene = QGraphicsScene(self)
         self.view.setScene(self.scene)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.view.setBackgroundBrush(QBrush(QColor(30, 30, 30)))
+        self.layout.addWidget(self.view, stretch=1)
 
-        self.layout.addWidget(self.view)
+        # 3. Bottom Control Bar (Grid & Zoom)
+        self.bottom_bar = QWidget(self)
+        self.bottom_layout = QHBoxLayout(self.bottom_bar)
+        self.bottom_layout.setContentsMargins(10, 5, 10, 5)
+
+        # Grid Toggle
+        self.btn_grid = QPushButton("Toggle Grid")
+        self.btn_grid.setCheckable(True)
+        self.btn_grid.clicked.connect(self.view.set_show_grid)
+
+        # Zoom Controls
+        self.btn_zoom_out = QPushButton("-")
+        self.btn_zoom_out.setFixedWidth(30)
+        self.btn_zoom_out.clicked.connect(lambda: self.view.set_zoom(self.view._zoom_level - 10))
+
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setRange(10, 500)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(150)
+        self.zoom_slider.valueChanged.connect(self.view.set_zoom)
+
+        self.btn_zoom_in = QPushButton("+")
+        self.btn_zoom_in.setFixedWidth(30)
+        self.btn_zoom_in.clicked.connect(lambda: self.view.set_zoom(self.view._zoom_level + 10))
+
+        self.zoom_label = QLabel("100%")
+        self.zoom_label.setFixedWidth(40)
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        # Connect the view's zoom signal back to the UI slider/label
+        self.view.zoom_changed.connect(self._update_zoom_ui)
+
+        # Add widgets to the bottom layout
+        self.bottom_layout.addWidget(self.btn_grid)
+        self.bottom_layout.addStretch()  # Pushes zoom controls to the right
+        self.bottom_layout.addWidget(self.btn_zoom_out)
+        self.bottom_layout.addWidget(self.zoom_slider)
+        self.bottom_layout.addWidget(self.btn_zoom_in)
+        self.bottom_layout.addWidget(self.zoom_label)
+
+        self.layout.addWidget(self.bottom_bar)
 
         # State Variables
         self.items_map = {}
         self._is_syncing = False
-
         self.scene.selectionChanged.connect(self.handle_selection_changed)
 
+    def _update_zoom_ui(self, level):
+        """Updates the slider and label when the user zooms with the mouse wheel."""
+        self.zoom_slider.blockSignals(True) # Prevent infinite signal loops
+        self.zoom_slider.setValue(level)
+        self.zoom_slider.blockSignals(False)
+        self.zoom_label.setText(f"{level}%")
     def _setup_toolbar(self):
         """Initializes the toolbar actions and sets them to disabled by default."""
         self.align_actions = []

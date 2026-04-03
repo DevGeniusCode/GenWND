@@ -7,7 +7,6 @@ from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIO
 
 from src.window.window_properties import ObjectFactory
 
-
 class ObjectTreeModel(QStandardItemModel):
     def __init__(self, main_window):
         super().__init__()

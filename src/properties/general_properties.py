@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtGui import QColor
 from src.properties.text_color import ColorPickerApp
+from src.commands import CommandChangeGeometry, CommandChangeProperty
 
 class GeneralForm(QWidget):
     def __init__(self, parent=None, main_window=None, general_data=None):
@@ -22,7 +23,6 @@ class GeneralForm(QWidget):
         self.name_entry.setObjectName("name_entry")
         formLayout.addWidget(self.name_label)
         formLayout.addWidget(self.name_entry)
-        self.name_entry.textChanged.connect(lambda: self.update_key_property('NAME', self.name_entry.text()))
 
         # Position GroupBox
         self.creation_resolution_width = 100
@@ -48,14 +48,10 @@ class GeneralForm(QWidget):
         self.bottom_right_x_spinbox.setMaximum(self.creation_resolution_width)
         self.bottom_right_y_spinbox.setMaximum(self.creation_resolution_height)
 
-        self.upper_left_x_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', (value, self.upper_left_y_spinbox.value())))
-        self.upper_left_y_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'UPPERLEFT', (self.upper_left_x_spinbox.value(), value)))
-        self.bottom_right_x_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', (value, self.bottom_right_y_spinbox.value())))
-        self.bottom_right_y_spinbox.valueChanged.connect(
-            lambda value: self.update_sub_property('SCREENRECT', 'BOTTOMRIGHT', (self.bottom_right_x_spinbox.value(), value)))
+        self.upper_left_x_spinbox.editingFinished.connect(self.commit_geometry_change)
+        self.upper_left_y_spinbox.editingFinished.connect(self.commit_geometry_change)
+        self.bottom_right_x_spinbox.editingFinished.connect(self.commit_geometry_change)
+        self.bottom_right_y_spinbox.editingFinished.connect(self.commit_geometry_change)
 
         position_layout.addWidget(self.upper_left_label, 0, 0)
         position_layout.addWidget(self.upper_left_x_label, 0, 1)
@@ -182,8 +178,9 @@ class GeneralForm(QWidget):
         self.text_group.setLayout(text_layout)
         formLayout.addWidget(self.text_group)
 
-        self.text_entry.textChanged.connect(lambda: self.update_key_property('TEXT', self.text_entry.text()))
-        self.tooltip_entry.textChanged.connect(lambda: self.update_key_property('TOOLTIPTEXT', self.tooltip_entry.text()))
+        self.name_entry.editingFinished.connect(lambda: self.commit_text_change('NAME', self.name_entry))
+        self.text_entry.editingFinished.connect(lambda: self.commit_text_change('TEXT', self.text_entry))
+        self.tooltip_entry.editingFinished.connect(lambda: self.commit_text_change('TOOLTIPTEXT', self.tooltip_entry))
 
         # Font Style
         self.font_group = QGroupBox("Font Style", self)
@@ -329,5 +326,40 @@ class GeneralForm(QWidget):
             active_flags.append("TABSTOP")
 
         self.update_key_property("STATUS", active_flags)
+
+    def commit_geometry_change(self):
+        """Checks if spinboxes changed, and pushes a geometry command."""
+        if not hasattr(self.main_window, 'selected_object') or not self.main_window.selected_object:
+            return
+
+        new_ul = (self.upper_left_x_spinbox.value(), self.upper_left_y_spinbox.value())
+        new_br = (self.bottom_right_x_spinbox.value(), self.bottom_right_y_spinbox.value())
+
+        old_ul = tuple(self.general_data['SCREENRECT']['UPPERLEFT'])
+        old_br = tuple(self.general_data['SCREENRECT']['BOTTOMRIGHT'])
+
+        if new_ul != old_ul or new_br != old_br:
+            cmd = CommandChangeGeometry(
+                self.main_window,
+                self.main_window.selected_object.window_uuid,
+                old_ul, old_br, new_ul, new_br
+            )
+            self.main_window.undo_stack.push(cmd)
+
+    def commit_text_change(self, prop_key, line_edit):
+        """Checks if text entry changed, and pushes a property command."""
+        if not hasattr(self.main_window, 'selected_object') or not self.main_window.selected_object:
+            return
+
+        new_val = line_edit.text()
+        old_val = self.general_data.get(prop_key, "")
+
+        if new_val != old_val:
+            cmd = CommandChangeProperty(
+                self.main_window,
+                self.main_window.selected_object.window_uuid,
+                prop_key, old_val, new_val
+            )
+            self.main_window.undo_stack.push(cmd)
 
 

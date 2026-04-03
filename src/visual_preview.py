@@ -57,6 +57,10 @@ class WndGraphicsItem(QGraphicsRectItem):
     def mousePressEvent(self, event):
         """Detect if the user clicked a resize handle or is just dragging the item."""
         if self.isSelected():
+            # Capture starting geometry for Undo tracking
+            self._undo_start_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
+            self._undo_start_br = (int(self.scenePos().x() + self.rect().width()), int(self.scenePos().y() + self.rect().height()))
+
             self.active_handle = self._get_handle_at(event.pos())
             if self.active_handle:
                 self.is_resizing = True
@@ -97,6 +101,20 @@ class WndGraphicsItem(QGraphicsRectItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        # Capture ending geometry
+        current_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
+        current_br = (int(self.scenePos().x() + self.rect().width()), int(self.scenePos().y() + self.rect().height()))
+
+        # Check if geometry actually changed during the drag/resize
+        if hasattr(self, '_undo_start_ul'):
+            if current_ul != self._undo_start_ul or current_br != self._undo_start_br:
+                self.preview_widget.item_drag_finished_signal.emit(
+                    self.window_uuid, self._undo_start_ul, self._undo_start_br, current_ul, current_br
+                )
+            # Cleanup
+            del self._undo_start_ul
+            del self._undo_start_br
+
         self.is_resizing = False
         self.active_handle = None
         super().mouseReleaseEvent(event)
@@ -240,6 +258,8 @@ class PreviewGraphicsView(QGraphicsView):
 class VisualPreview(QWidget):
     item_selected_signal = pyqtSignal(str)
     item_moved_signal = pyqtSignal(object, tuple, tuple)
+    item_drag_finished_signal = pyqtSignal(str, tuple, tuple, tuple, tuple)
+    items_aligned_signal = pyqtSignal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -364,10 +384,7 @@ class VisualPreview(QWidget):
     def align_items(self, alignment):
         """Aligns or distributes multiple selected items."""
         items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
-        if len(items) < 2:
-            return
-
-        self._is_syncing = True
+        if len(items) < 2: return
 
         min_x = min(i.scenePos().x() for i in items)
         max_r = max(i.scenePos().x() + i.rect().width() for i in items)
@@ -377,14 +394,22 @@ class VisualPreview(QWidget):
         center_x = (min_x + max_r) / 2
         center_y = (min_y + max_b) / 2
 
+        changes = [] # List of (uuid, old_ul, old_br, new_ul, new_br)
+
         if alignment == 'dist_h':
             items.sort(key=lambda i: i.scenePos().x())
             total_w = sum(i.rect().width() for i in items)
             space = (max_r - min_x - total_w) / (len(items) - 1) if len(items) > 1 else 0
             curr_x = min_x
             for i in items:
-                i.setPos(curr_x, i.scenePos().y())
+                new_x = curr_x
                 curr_x += i.rect().width() + space
+
+                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
+                old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
+                new_ul = (int(new_x), old_ul[1])
+                new_br = (int(new_x + i.rect().width()), old_br[1])
+                changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
 
         elif alignment == 'dist_v':
             items.sort(key=lambda i: i.scenePos().y())
@@ -392,38 +417,37 @@ class VisualPreview(QWidget):
             space = (max_b - min_y - total_h) / (len(items) - 1) if len(items) > 1 else 0
             curr_y = min_y
             for i in items:
-                i.setPos(i.scenePos().x(), curr_y)
+                new_y = curr_y
                 curr_y += i.rect().height() + space
 
+                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
+                old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
+                new_ul = (old_ul[0], int(new_y))
+                new_br = (old_br[0], int(new_y + i.rect().height()))
+                changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
         else:
             for i in items:
                 rect = i.rect()
-                new_x, new_y = i.scenePos().x(), i.scenePos().y()
+                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
+                old_br = (int(i.scenePos().x() + rect.width()), int(i.scenePos().y() + rect.height()))
+                new_x, new_y = old_ul[0], old_ul[1]
 
-                if alignment == 'left':
-                    new_x = min_x
-                elif alignment == 'right':
-                    new_x = max_r - rect.width()
-                elif alignment == 'hcenter':
-                    new_x = center_x - (rect.width() / 2)
-                elif alignment == 'top':
-                    new_y = min_y
-                elif alignment == 'bottom':
-                    new_y = max_b - rect.height()
-                elif alignment == 'vcenter':
-                    new_y = center_y - (rect.height() / 2)
+                if alignment == 'left': new_x = min_x
+                elif alignment == 'right': new_x = max_r - rect.width()
+                elif alignment == 'hcenter': new_x = center_x - (rect.width() / 2)
+                elif alignment == 'top': new_y = min_y
+                elif alignment == 'bottom': new_y = max_b - rect.height()
+                elif alignment == 'vcenter': new_y = center_y - (rect.height() / 2)
 
-                i.setPos(new_x, new_y)
+                new_ul = (int(new_x), int(new_y))
+                new_br = (int(new_x + rect.width()), int(new_y + rect.height()))
 
-        # Emit sync signals for ALL modified items
-        for i in items:
-            ul = i.scenePos()
-            br = QPointF(ul.x() + i.rect().width(), ul.y() + i.rect().height())
-            new_ul = (int(ul.x()), int(ul.y()))
-            new_br = (int(br.x()), int(br.y()))
-            self.handle_item_moved(i.window, new_ul, new_br)
+                if old_ul != new_ul or old_br != new_br:
+                    changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
 
-        self._is_syncing = False
+        if changes:
+            # Emitting this signal sends the command to main.py, and the QUndoStack's redo() will physically move them!
+            self.items_aligned_signal.emit(changes)
 
     def handle_item_moved(self, window, new_ul, new_br):
         self.item_moved_signal.emit(window, new_ul, new_br)

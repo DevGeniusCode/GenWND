@@ -5,6 +5,8 @@ from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import Qt
 import os
 import traceback
+from PyQt6.QtGui import QUndoStack, QAction
+from commands import CommandChangeGeometry, CommandChangeProperty
 
 from object_tree import ObjectTree
 from file_tree import FileTree
@@ -47,6 +49,21 @@ class MainWindow(QMainWindow):
         file_menu.addAction(save_action)
         file_menu.addAction(save_as_action)
         file_menu.addAction(settings_action)
+
+        # Setup Undo Stack
+        self.undo_stack = QUndoStack(self)
+
+        # Edit menu actions (Undo/Redo)
+        edit_menu = menu_bar.addMenu("Edit")
+
+        undo_action = self.undo_stack.createUndoAction(self, "Undo")
+        undo_action.setShortcuts(["Ctrl+Z"])
+
+        redo_action = self.undo_stack.createRedoAction(self, "Redo")
+        redo_action.setShortcuts(["Ctrl+Y", "Ctrl+Shift+Z"])
+
+        edit_menu.addAction(undo_action)
+        edit_menu.addAction(redo_action)
 
         # Create a stacked widget to hold different widgets
         self.settings_widget = SettingsWidget()
@@ -102,6 +119,8 @@ class MainWindow(QMainWindow):
         self.visual_preview = VisualPreview(self)
         self.visual_preview.setMinimumWidth(300)
         self.object_tree.visibility_changed_signal.connect(self.visual_preview.set_item_visibility)
+        self.visual_preview.item_drag_finished_signal.connect(self.handle_item_drag_finished)
+        self.visual_preview.items_aligned_signal.connect(self.handle_items_aligned)
 
         # connection lines:
         self.visual_preview.item_selected_signal.connect(self.object_tree.select_item_by_uuid)
@@ -431,6 +450,19 @@ class MainWindow(QMainWindow):
         # Log the exception using the log manager
         self.log_manager.log_exception(exc_value)
         self.log_manager.log_exception(stack_trace)
+
+    def handle_item_drag_finished(self, window_uuid, old_ul, old_br, new_ul, new_br):
+        """Pushes a drag/resize to the undo stack."""
+        cmd = CommandChangeGeometry(self, window_uuid, old_ul, old_br, new_ul, new_br)
+        self.undo_stack.push(cmd)
+
+    def handle_items_aligned(self, changes):
+        """Pushes a bulk alignment operation as a single macro command."""
+        self.undo_stack.beginMacro("Align Items")
+        for window_uuid, old_ul, old_br, new_ul, new_br in changes:
+            cmd = CommandChangeGeometry(self, window_uuid, old_ul, old_br, new_ul, new_br)
+            self.undo_stack.push(cmd)
+        self.undo_stack.endMacro()
 
     def dragEnterEvent(self, event):
         """Handles the drag enter event. Checks if the dragged content is a valid file."""

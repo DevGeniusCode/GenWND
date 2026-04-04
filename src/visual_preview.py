@@ -1,28 +1,28 @@
-# --- START OF FILE visual_preview.py ---
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QToolBar, QGraphicsView,
-                             QGraphicsScene, QGraphicsRectItem, QGraphicsTextItem,
-                             QGraphicsItem)
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QToolBar, QGraphicsView, QGraphicsScene,
+    QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QSlider,
+    QLabel, QHBoxLayout, QPushButton
+)
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF
-# Add these specific classes to your existing PyQt6.QtWidgets / QtCore imports:
-from PyQt6.QtWidgets import QSlider, QLabel, QHBoxLayout, QPushButton
-from PyQt6.QtCore import QLineF
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF
+
 
 class WndGraphicsItem(QGraphicsRectItem):
+    """Represents a selectable, draggable, and resizable WND object on the canvas."""
     HANDLE_SIZE = 8
 
-    def __init__(self, window, preview_widget, w, h):
-        super().__init__(0, 0, w, h)
+    def __init__(self, window, preview_widget, width, height):
+        super().__init__(0, 0, width, height)
         self.window = window
         self.window_uuid = window.window_uuid
-        self.preview_widget = preview_widget  # The parent VisualPreview widget containing logic
+        self.preview_widget = preview_widget
         self.original_z = 0
 
         # Enable Interactivity
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
-        self.setAcceptHoverEvents(True)  # Required for changing cursors on handles
+        self.setAcceptHoverEvents(True)
 
         # Default Styling
         self.default_brush = QBrush(QColor(100, 150, 255, 40))
@@ -35,6 +35,11 @@ class WndGraphicsItem(QGraphicsRectItem):
         # Resize State
         self.active_handle = None
         self.is_resizing = False
+
+    def boundingRect(self):
+        """Expand the bounding rectangle to encompass the resize handles to prevent graphical ghosting."""
+        margin = (self.HANDLE_SIZE / 2) + self.pen().widthF()
+        return self.rect().adjusted(-margin, -margin, margin, margin)
 
     def hoverMoveEvent(self, event):
         """Change the cursor when hovering over resize handles."""
@@ -59,7 +64,10 @@ class WndGraphicsItem(QGraphicsRectItem):
         if self.isSelected():
             # Capture starting geometry for Undo tracking
             self._undo_start_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
-            self._undo_start_br = (int(self.scenePos().x() + self.rect().width()), int(self.scenePos().y() + self.rect().height()))
+            self._undo_start_br = (
+                int(self.scenePos().x() + self.rect().width()),
+                int(self.scenePos().y() + self.rect().height())
+            )
 
             self.active_handle = self._get_handle_at(event.pos())
             if self.active_handle:
@@ -88,6 +96,8 @@ class WndGraphicsItem(QGraphicsRectItem):
 
             self.preview_widget._is_syncing = True
 
+            # Notify Qt of the geometry change BEFORE updating pos/rect
+            self.prepareGeometryChange()
             self.setPos(ul)
             self.setRect(0, 0, br.x() - ul.x(), br.y() - ul.y())
 
@@ -101,19 +111,26 @@ class WndGraphicsItem(QGraphicsRectItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        # Capture ending geometry
+        """Capture ending geometry and emit signals for bulk tracking."""
         current_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
-        current_br = (int(self.scenePos().x() + self.rect().width()), int(self.scenePos().y() + self.rect().height()))
+        current_br = (
+            int(self.scenePos().x() + self.rect().width()),
+            int(self.scenePos().y() + self.rect().height())
+        )
 
         # Check if geometry actually changed during the drag/resize
         if hasattr(self, '_undo_start_ul'):
             if current_ul != self._undo_start_ul or current_br != self._undo_start_br:
                 self.preview_widget.item_drag_finished_signal.emit(
-                    self.window_uuid, self._undo_start_ul, self._undo_start_br, current_ul, current_br
+                    self.window_uuid,
+                    self._undo_start_ul,
+                    self._undo_start_br,
+                    current_ul,
+                    current_br
                 )
             # Cleanup
-            del self._undo_start_ul
-            del self._undo_start_br
+            delattr(self, '_undo_start_ul')
+            delattr(self, '_undo_start_br')
 
         self.is_resizing = False
         self.active_handle = None
@@ -150,22 +167,22 @@ class WndGraphicsItem(QGraphicsRectItem):
             half = hs / 2
 
             handles = [
-                QRectF(0 - half, 0 - half, hs, hs),  # TL
-                QRectF(rect.width() / 2 - half, 0 - half, hs, hs),  # T
-                QRectF(rect.width() - half, 0 - half, hs, hs),  # TR
-                QRectF(rect.width() - half, rect.height() / 2 - half, hs, hs),  # R
-                QRectF(rect.width() - half, rect.height() - half, hs, hs),  # BR
-                QRectF(rect.width() / 2 - half, rect.height() - half, hs, hs),  # B
-                QRectF(0 - half, rect.height() - half, hs, hs),  # BL
-                QRectF(0 - half, rect.height() / 2 - half, hs, hs)  # L
+                QRectF(0 - half, 0 - half, hs, hs),                                 # TL
+                QRectF(rect.width() / 2 - half, 0 - half, hs, hs),                  # T
+                QRectF(rect.width() - half, 0 - half, hs, hs),                      # TR
+                QRectF(rect.width() - half, rect.height() / 2 - half, hs, hs),      # R
+                QRectF(rect.width() - half, rect.height() - half, hs, hs),          # BR
+                QRectF(rect.width() / 2 - half, rect.height() - half, hs, hs),      # B
+                QRectF(0 - half, rect.height() - half, hs, hs),                     # BL
+                QRectF(0 - half, rect.height() / 2 - half, hs, hs)                  # L
             ]
             for h in handles:
                 painter.drawRect(h)
 
     def _get_handle_at(self, pos):
+        """Determine if a coordinate position hits a resize handle."""
         hs = self.HANDLE_SIZE
         rect = self.rect()
-        t, b, l, r = -hs, rect.height() + hs, -hs, rect.width() + hs
 
         if pos.y() < hs:
             if pos.x() < hs: return 'TL'
@@ -180,6 +197,7 @@ class WndGraphicsItem(QGraphicsRectItem):
             if pos.x() > rect.width() - hs: return 'R'
         return None
 
+
 class PreviewGraphicsView(QGraphicsView):
     """Custom QGraphicsView to handle Zooming and Background Grids."""
     zoom_changed = pyqtSignal(int)
@@ -189,8 +207,6 @@ class PreviewGraphicsView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setBackgroundBrush(QBrush(QColor(30, 30, 30)))
-
-        # Ensures zooming centers on the mouse pointer
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
 
         self.show_grid = False
@@ -199,18 +215,16 @@ class PreviewGraphicsView(QGraphicsView):
 
     def set_show_grid(self, show):
         self.show_grid = show
-        # MODIFIED: Invalidate Foreground instead of Background
         self.scene().invalidate(self.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
         self.viewport().update()
 
     def drawForeground(self, painter, rect):
-        """NEW: Draws the grid on top of all items."""
+        """Draws the grid on top of all items when enabled."""
         super().drawForeground(painter, rect)
 
         if not self.show_grid:
             return
 
-        # Calculate grid lines
         left = int(rect.left()) - (int(rect.left()) % self.grid_size)
         top = int(rect.top()) - (int(rect.top()) % self.grid_size)
 
@@ -225,14 +239,14 @@ class PreviewGraphicsView(QGraphicsView):
             lines.append(QLineF(rect.left(), y, rect.right(), y))
             y += self.grid_size
 
-        # Draw the grid with a subtle dashed line
         pen = QPen(QColor(100, 100, 100, 80), 1)
         pen.setStyle(Qt.PenStyle.DotLine)
         painter.setPen(pen)
         painter.drawLines(lines)
 
     def set_zoom(self, level):
-        self._zoom_level = max(10, min(500, level))  # Restrict zoom between 10% and 500%
+        """Safely apply scale transformations based on a percentage zoom level."""
+        self._zoom_level = max(10, min(500, level))
         factor = self._zoom_level / 100.0
 
         self.setTransform(self.transform().fromScale(factor, factor))
@@ -248,48 +262,78 @@ class PreviewGraphicsView(QGraphicsView):
                 self.set_zoom(self._zoom_level - 10)
             event.accept()
         else:
-            # Default behavior (vertical/horizontal scroll panning)
             super().wheelEvent(event)
 
-    def drawBackground(self, painter, rect):
-        """Draws the standard background and the optional grid."""
-        super().drawBackground(painter, rect)
 
 class VisualPreview(QWidget):
+    """Main Canvas container combining the Toolbar, the View, and the Control Bar."""
     item_selected_signal = pyqtSignal(str)
     item_moved_signal = pyqtSignal(object, tuple, tuple)
     item_drag_finished_signal = pyqtSignal(str, tuple, tuple, tuple, tuple)
-    items_aligned_signal = pyqtSignal(list)
+    bulk_geometry_change_signal = pyqtSignal(str, list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        # 1. Top Alignment Toolbar
+        # State Variables
+        self.items_map = {}
+        self._is_syncing = False
+        self.align_actions = []
+
+        self._setup_toolbar()
+        self._setup_view()
+        self._setup_bottom_bar()
+
+    def _setup_toolbar(self):
         self.toolbar = QToolBar("Alignment Toolbar", self)
         self.layout.addWidget(self.toolbar)
-        self._setup_toolbar()
 
-        # 2. Custom Graphics View & Scene (Replaced standard QGraphicsView)
-        self.view = PreviewGraphicsView(self)
+        def add_action(text, command, is_extend=False):
+            action = QAction(text, self)
+            if is_extend:
+                action.triggered.connect(lambda checked, cmd=command: self.extend_items(cmd))
+            else:
+                action.triggered.connect(lambda checked, cmd=command: self.align_items(cmd))
+            action.setEnabled(False)
+            self.toolbar.addAction(action)
+            self.align_actions.append(action)
+
+        add_action("Align Left", 'left')
+        add_action("Align H-Center", 'hcenter')
+        add_action("Align Right", 'right')
+        self.toolbar.addSeparator()
+        add_action("Align Top", 'top')
+        add_action("Align V-Center", 'vcenter')
+        add_action("Align Bottom", 'bottom')
+        self.toolbar.addSeparator()
+        add_action("Distribute H", 'dist_h')
+        add_action("Distribute V", 'dist_v')
+        self.toolbar.addSeparator()
+        add_action("Extend Left", 'ext_left', True)
+        add_action("Extend Right", 'ext_right', True)
+        add_action("Extend Top", 'ext_top', True)
+        add_action("Extend Bottom", 'ext_bottom', True)
+
+    def _setup_view(self):
         self.scene = QGraphicsScene(self)
+        self.scene.selectionChanged.connect(self.handle_selection_changed)
+
+        self.view = PreviewGraphicsView(self)
         self.view.setScene(self.scene)
         self.layout.addWidget(self.view, stretch=1)
 
-        # 3. Bottom Control Bar (Grid & Zoom)
+    def _setup_bottom_bar(self):
         self.bottom_bar = QWidget(self)
         self.bottom_layout = QHBoxLayout(self.bottom_bar)
         self.bottom_layout.setContentsMargins(10, 5, 10, 5)
 
-        # Grid Toggle
         self.btn_grid = QPushButton("Toggle Grid")
         self.btn_grid.setCheckable(True)
         self.btn_grid.clicked.connect(self.view.set_show_grid)
 
-        # Zoom Controls
         self.btn_zoom_out = QPushButton("-")
         self.btn_zoom_out.setFixedWidth(30)
         self.btn_zoom_out.clicked.connect(lambda: self.view.set_zoom(self.view._zoom_level - 10))
@@ -308,12 +352,10 @@ class VisualPreview(QWidget):
         self.zoom_label.setFixedWidth(40)
         self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        # Connect the view's zoom signal back to the UI slider/label
         self.view.zoom_changed.connect(self._update_zoom_ui)
 
-        # Add widgets to the bottom layout
         self.bottom_layout.addWidget(self.btn_grid)
-        self.bottom_layout.addStretch()  # Pushes zoom controls to the right
+        self.bottom_layout.addStretch()
         self.bottom_layout.addWidget(self.btn_zoom_out)
         self.bottom_layout.addWidget(self.zoom_slider)
         self.bottom_layout.addWidget(self.btn_zoom_in)
@@ -321,43 +363,11 @@ class VisualPreview(QWidget):
 
         self.layout.addWidget(self.bottom_bar)
 
-        # State Variables
-        self.items_map = {}
-        self._is_syncing = False
-        self.scene.selectionChanged.connect(self.handle_selection_changed)
-
     def _update_zoom_ui(self, level):
-        """Updates the slider and label when the user zooms with the mouse wheel."""
-        self.zoom_slider.blockSignals(True) # Prevent infinite signal loops
+        self.zoom_slider.blockSignals(True)
         self.zoom_slider.setValue(level)
         self.zoom_slider.blockSignals(False)
         self.zoom_label.setText(f"{level}%")
-    def _setup_toolbar(self):
-        """Initializes the toolbar actions and sets them to disabled by default."""
-        self.align_actions = []
-
-        # Helper to create and bind actions
-        def add_align_action(text, command):
-            action = QAction(text, self)
-            action.triggered.connect(lambda checked, cmd=command: self.align_items(cmd))
-            action.setEnabled(False)
-            self.toolbar.addAction(action)
-            self.align_actions.append(action)
-
-        add_align_action("Align Left", 'left')
-        add_align_action("Align H-Center", 'hcenter')
-        add_align_action("Align Right", 'right')
-
-        self.toolbar.addSeparator()
-
-        add_align_action("Align Top", 'top')
-        add_align_action("Align V-Center", 'vcenter')
-        add_align_action("Align Bottom", 'bottom')
-
-        self.toolbar.addSeparator()
-
-        add_align_action("Distribute H", 'dist_h')
-        add_align_action("Distribute V", 'dist_v')
 
     def clear(self):
         self.scene.clear()
@@ -368,23 +378,60 @@ class VisualPreview(QWidget):
         selected = self.scene.selectedItems()
         wnd_items = [i for i in selected if isinstance(i, WndGraphicsItem)]
 
-        # 1. Update Toolbar State (Enable if 2+ items selected)
         self.update_toolbar_state(len(wnd_items))
 
-        # 2. Sync to Object Tree (if a single item is selected)
         if not self._is_syncing and len(wnd_items) == 1:
             self.item_selected_signal.emit(wnd_items[0].window_uuid)
 
     def update_toolbar_state(self, selected_count):
-        """Enables or disables alignment buttons based on selection count."""
         is_enabled = selected_count >= 2
         for action in self.align_actions:
             action.setEnabled(is_enabled)
 
-    def align_items(self, alignment):
-        """Aligns or distributes multiple selected items."""
+    def extend_items(self, direction):
         items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
         if len(items) < 2: return
+
+        self._is_syncing = True
+
+        min_x = min(i.scenePos().x() for i in items)
+        max_r = max(i.scenePos().x() + i.rect().width() for i in items)
+        min_y = min(i.scenePos().y() for i in items)
+        max_b = max(i.scenePos().y() + i.rect().height() for i in items)
+
+        changes = []
+        for i in items:
+            rect = i.rect()
+            old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
+            old_br = (int(i.scenePos().x() + rect.width()), int(i.scenePos().y() + rect.height()))
+
+            new_ul_x, new_ul_y = old_ul[0], old_ul[1]
+            new_br_x, new_br_y = old_br[0], old_br[1]
+
+            if direction == 'ext_left': new_ul_x = min_x
+            elif direction == 'ext_right': new_br_x = max_r
+            elif direction == 'ext_top': new_ul_y = min_y
+            elif direction == 'ext_bottom': new_br_y = max_b
+
+            new_ul = (int(new_ul_x), int(new_ul_y))
+            new_br = (int(new_br_x), int(new_br_y))
+
+            if old_ul != new_ul or old_br != new_br:
+                i.setPos(new_ul[0], new_ul[1])
+                i.setRect(0, 0, new_br[0] - new_ul[0], new_br[1] - new_ul[1])
+                changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
+                self.handle_item_moved(i.window, new_ul, new_br)
+
+        if changes:
+            macro_name = f"Extend {direction.split('_')[1].capitalize()}"
+            self.bulk_geometry_change_signal.emit(macro_name, changes)
+
+        self._is_syncing = False
+
+    def align_items(self, alignment):
+        items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
+        if len(items) < 2: return
+        self._is_syncing = True
 
         min_x = min(i.scenePos().x() for i in items)
         max_r = max(i.scenePos().x() + i.rect().width() for i in items)
@@ -394,7 +441,7 @@ class VisualPreview(QWidget):
         center_x = (min_x + max_r) / 2
         center_y = (min_y + max_b) / 2
 
-        changes = [] # List of (uuid, old_ul, old_br, new_ul, new_br)
+        changes = []
 
         if alignment == 'dist_h':
             items.sort(key=lambda i: i.scenePos().x())
@@ -404,7 +451,6 @@ class VisualPreview(QWidget):
             for i in items:
                 new_x = curr_x
                 curr_x += i.rect().width() + space
-
                 old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
                 old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
                 new_ul = (int(new_x), old_ul[1])
@@ -419,7 +465,6 @@ class VisualPreview(QWidget):
             for i in items:
                 new_y = curr_y
                 curr_y += i.rect().height() + space
-
                 old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
                 old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
                 new_ul = (old_ul[0], int(new_y))
@@ -446,8 +491,9 @@ class VisualPreview(QWidget):
                     changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
 
         if changes:
-            # Emitting this signal sends the command to main.py, and the QUndoStack's redo() will physically move them!
-            self.items_aligned_signal.emit(changes)
+            self.bulk_geometry_change_signal.emit("Align Items", changes)
+
+        self._is_syncing = False
 
     def handle_item_moved(self, window, new_ul, new_br):
         self.item_moved_signal.emit(window, new_ul, new_br)
@@ -468,7 +514,7 @@ class VisualPreview(QWidget):
         item = self.items_map[window.window_uuid]
         ul = window.properties['SCREENRECT'].get('UPPERLEFT', [0, 0])
         br = window.properties['SCREENRECT'].get('BOTTOMRIGHT', [0, 0])
-        w = br[0] - ul[0];
+        w = br[0] - ul[0]
         h = br[1] - ul[1]
         if w > 0 and h > 0:
             item.setPos(ul[0], ul[1])
@@ -499,7 +545,6 @@ class VisualPreview(QWidget):
         if uuid in self.items_map:
             self.items_map[uuid].setVisible(is_visible)
 
-            # Deselect the item if it gets hidden to prevent weird floating handles
             if not is_visible:
                 self.items_map[uuid].setSelected(False)
 
@@ -510,7 +555,7 @@ class VisualPreview(QWidget):
             if screenrect:
                 ul = screenrect.get('UPPERLEFT', [0, 0])
                 br = screenrect.get('BOTTOMRIGHT', [0, 0])
-                w = br[0] - ul[0];
+                w = br[0] - ul[0]
                 h = br[1] - ul[1]
                 if w > 0 and h > 0:
                     rect_item = WndGraphicsItem(window, self, w, h)

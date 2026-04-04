@@ -88,7 +88,12 @@ class CommandChangeProperty(QUndoCommand):
         window.properties[self.prop_key] = val
         self.main_window.update_modified_state(True)
 
-        # Reload the property editor UI if this object is selected
-        if getattr(self.main_window, 'selected_object',
-                   None) and self.main_window.selected_object.window_uuid == self.window_uuid:
-            self.main_window.load_object_property()
+        # Set a flag to prevent UI property syncs from creating feedback loops in the Undo Stack
+        self.main_window._is_undoing = True
+        try:
+            # Reload the property editor UI if this object is selected
+            if getattr(self.main_window, 'selected_object',
+                       None) and self.main_window.selected_object.window_uuid == self.window_uuid:
+                self.main_window.load_object_property()
+        finally:
+            self.main_window._is_undoing = False

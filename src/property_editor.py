@@ -100,25 +100,29 @@ class PropertyEditor(QWidget):
 
     def load_property(self, control):
         """Loads the properties of a selected object into the editor."""
-        status = self.main_window.is_modified
-        self.clear()  # Clear any previous data
-        properties = control.properties
-        if not properties:
-            self.empty_label.setVisible(True)  # Show the empty label if no properties
-            return
+        self.main_window._is_syncing = True  # GUARD: Block UI updates from triggering Undo commands
+        try:
+            status = self.main_window.is_modified
+            self.clear()  # Clear any previous data
+            properties = control.properties
+            if not properties:
+                self.empty_label.setVisible(True)  # Show the empty label if no properties
+                return
 
-        self.original_properties = copy.deepcopy(properties)
-        self.properties = control.properties
-        self.control_object = control
-        self.empty_label.setVisible(False)
-        self.tabs.setVisible(True)
+            self.original_properties = copy.deepcopy(properties)
+            self.properties = control.properties
+            self.control_object = control
+            self.empty_label.setVisible(False)
+            self.tabs.setVisible(True)
 
-        # Load the tabs
-        self.load_general_properties()
-        self.load_control_properties()
-        self.load_raw_properties()
+            # Load the tabs
+            self.load_general_properties()
+            self.load_control_properties()
+            self.load_raw_properties()
 
-        self.main_window.update_modified_state(status)
+            self.main_window.update_modified_state(status)
+        finally:
+            self.main_window._is_syncing = False
 
     def load_control_properties(self, properties=None):
         """Loads the control properties into the editor."""

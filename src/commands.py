@@ -74,23 +74,77 @@ class CommandDeleteObject(QUndoCommand):
         self.main_window.update_modified_state(True)
         self.main_window.handle_object_added(self.target_object)
 
-class CommandChangeGeometry(QUndoCommand):
-    """Command to handle moving and resizing window objects."""
 
-    def __init__(self, main_window, window_uuid, old_ul, old_br, new_ul, new_br, description="Change Geometry"):
-        super().__init__(description)
+class CommandChangeGeometry(QUndoCommand):
+    """Command to change the position/size of an object with rapid-input merging."""
+
+    def __init__(self, main_window, window_uuid, old_ul, old_br, new_ul, new_br):
+        super().__init__("Change Geometry")
         self.main_window = main_window
         self.window_uuid = window_uuid
-        self.old_ul = old_ul
-        self.old_br = old_br
-        self.new_ul = new_ul
-        self.new_br = new_br
+
+        self.old_ul = list(old_ul)
+        self.old_br = list(old_br)
+        self.new_ul = list(new_ul)
+        self.new_br = list(new_br)
+
+    def id(self):
+        """Returns a unique ID so Qt knows which commands can be merged."""
+        # Constrain hash to 32-bit signed integer range
+        hash_val = hash(self.window_uuid) & 0x7FFFFFFF  # Keep only positive values
+        return 1100 + (hash_val % 1000000)
+
+    def mergeWith(self, command):
+        """Compresses rapid spinbox inputs into a single Undo action."""
+        if command.id() != self.id():
+            return False
+
+        # Update our 'new' state to the incoming command's state, preserving the original 'old' state
+        self.new_ul = command.new_ul
+        self.new_br = command.new_br
+        return True
+
+    def _sync_system_state(self, is_undo):
+        """Helper to apply data and synchronize the Canvas and UI without duplicating code."""
+        self.main_window._is_undoing = True
+
+        ul = self.old_ul if is_undo else self.new_ul
+        br = self.old_br if is_undo else self.new_br
+
+        # 1. Update the underlying data model
+        window = self.main_window.object_tree.model._find_window_by_uuid(
+            self.main_window.object_tree.model.parser_windows, self.window_uuid
+        )
+        if window:
+            if 'SCREENRECT' not in window.properties:
+                window.properties['SCREENRECT'] = {}
+            window.properties['SCREENRECT']['UPPERLEFT'] = ul
+            window.properties['SCREENRECT']['BOTTOMRIGHT'] = br
+
+            # 2. Instantly update Canvas graphics
+            if hasattr(self.main_window, 'visual_preview'):
+                self.main_window.visual_preview.update_item_geometry_from_data(window)
+
+            # 3. Synchronize Property Editor UI if the item is currently selected
+            if self.main_window.selected_object and self.main_window.selected_object.window_uuid == self.window_uuid:
+                self.main_window._is_syncing = True
+                gp = self.main_window.property_editor.general_properties
+                gp.upper_left_x_spinbox.setValue(ul[0])
+                gp.upper_left_y_spinbox.setValue(ul[1])
+                gp.bottom_right_x_spinbox.setValue(br[0])
+                gp.bottom_right_y_spinbox.setValue(br[1])
+                gp.width_spinbox.setValue(max(0, br[0] - ul[0]))
+                gp.height_spinbox.setValue(max(0, br[1] - ul[1]))
+                self.main_window._is_syncing = False
+
+        self.main_window.update_modified_state(True)
+        self.main_window._is_undoing = False
 
     def redo(self):
-        self._apply_geometry(self.new_ul, self.new_br)
+        self._sync_system_state(is_undo=False)
 
     def undo(self):
-        self._apply_geometry(self.old_ul, self.old_br)
+        self._sync_system_state(is_undo=True)
 
     def _apply_geometry(self, ul, br):
         # Find the window object recursively from the model

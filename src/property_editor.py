@@ -173,6 +173,12 @@ class PropertyEditor(QWidget):
         self.general_properties.bottom_right_x_spinbox.setValue(bottom_right[0])
         self.general_properties.bottom_right_y_spinbox.setValue(bottom_right[1])
 
+        # Compute and Set Width and Height
+        width = bottom_right[0] - upper_left[0]
+        height = bottom_right[1] - upper_left[1]
+        self.general_properties.width_spinbox.setValue(max(0, width))
+        self.general_properties.height_spinbox.setValue(max(0, height))
+
         # Set STATUS values (checkboxes for each status)
         status_values = properties.get('STATUS', [])
         status_dict = {

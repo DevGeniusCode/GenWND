@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QGroupBox, QLabel, QLineEdit, QSpinBox,
-    QTabWidget, QWidget, QVBoxLayout, QGridLayout, QHBoxLayout
+    QTabWidget, QWidget, QVBoxLayout, QGridLayout, QHBoxLayout, QPushButton
 )
 from PyQt6.QtGui import QColor
 
@@ -44,7 +44,7 @@ class GeneralForm(QWidget):
 
     def _setup_position_group(self):
         """Builds the Geometry/ScreenRect X,Y coordinate spinboxes."""
-        self.position_group = QGroupBox("Position", self)
+        self.position_group = QGroupBox("Position & Size", self)
         pos_layout = QGridLayout(self.position_group)
 
         self.upper_left_x_spinbox = QSpinBox(self.position_group)
@@ -52,14 +52,29 @@ class GeneralForm(QWidget):
         self.bottom_right_x_spinbox = QSpinBox(self.position_group)
         self.bottom_right_y_spinbox = QSpinBox(self.position_group)
 
+        # New Width/Height & Lock Button
+        self.width_spinbox = QSpinBox(self.position_group)
+        self.height_spinbox = QSpinBox(self.position_group)
+        self.lock_size_btn = QPushButton("🔓", self.position_group)
+        self.lock_size_btn.setCheckable(True)
+        self.lock_size_btn.setFixedSize(24, 24)
+        self.lock_size_btn.toggled.connect(self.toggle_lock_icon)
+
+        # Hook up coordinates
         for spinbox in [self.upper_left_x_spinbox, self.bottom_right_x_spinbox]:
             spinbox.setMaximum(self.creation_resolution_width)
-            spinbox.editingFinished.connect(self.commit_geometry_change)
+            spinbox.valueChanged.connect(self.commit_geometry_change)
 
         for spinbox in [self.upper_left_y_spinbox, self.bottom_right_y_spinbox]:
             spinbox.setMaximum(self.creation_resolution_height)
-            spinbox.editingFinished.connect(self.commit_geometry_change)
+            spinbox.valueChanged.connect(self.commit_geometry_change)
 
+        # Hook up dimensions
+        for spinbox in [self.width_spinbox, self.height_spinbox]:
+            spinbox.setMaximum(self.creation_resolution_width)
+            spinbox.valueChanged.connect(self.commit_size_change)
+
+        # Populate Layout
         pos_layout.addWidget(QLabel("Upper Left"), 0, 0)
         pos_layout.addWidget(QLabel("X"), 0, 1)
         pos_layout.addWidget(self.upper_left_x_spinbox, 0, 2)
@@ -72,7 +87,20 @@ class GeneralForm(QWidget):
         pos_layout.addWidget(QLabel("Y"), 1, 3)
         pos_layout.addWidget(self.bottom_right_y_spinbox, 1, 4)
 
+        pos_layout.addWidget(QLabel("Dimensions"), 2, 0)
+        pos_layout.addWidget(QLabel("W"), 2, 1)
+        pos_layout.addWidget(self.width_spinbox, 2, 2)
+        pos_layout.addWidget(QLabel("H"), 2, 3)
+        pos_layout.addWidget(self.height_spinbox, 2, 4)
+        pos_layout.addWidget(self.lock_size_btn, 2, 5)
+
         self.layout.addWidget(self.position_group)
+
+    def toggle_lock_icon(self, checked):
+        if checked:
+            self.lock_size_btn.setText("🔒")
+        else:
+            self.lock_size_btn.setText("🔓")
 
     def _setup_status_group(self):
         """Builds the Status properties checkable tabs."""
@@ -233,33 +261,95 @@ class GeneralForm(QWidget):
         self.bottom_right_x_spinbox.setMaximum(width)
         self.bottom_right_y_spinbox.setMaximum(height)
 
+        self.width_spinbox.setMaximum(width)
+        self.height_spinbox.setMaximum(height)
+
     def commit_geometry_change(self):
         """Fires a geometry command specifically for the Canvas syncing."""
-        if getattr(self.main_window, '_is_undoing', False):
+        if getattr(self.main_window, '_is_undoing', False) or getattr(self.main_window, '_is_syncing', False):
             return
 
         if not hasattr(self.main_window, 'selected_object') or not self.main_window.selected_object:
             return
 
-        new_ul = (self.upper_left_x_spinbox.value(), self.upper_left_y_spinbox.value())
-        new_br = (self.bottom_right_x_spinbox.value(), self.bottom_right_y_spinbox.value())
-
         screen_rect = self.general_data.get('SCREENRECT', {})
         old_ul = tuple(screen_rect.get('UPPERLEFT', [0, 0]))
         old_br = tuple(screen_rect.get('BOTTOMRIGHT', [0, 0]))
 
-        if new_ul != old_ul or new_br != old_br:
+        new_ul = [self.upper_left_x_spinbox.value(), self.upper_left_y_spinbox.value()]
+        new_br = [self.bottom_right_x_spinbox.value(), self.bottom_right_y_spinbox.value()]
+
+        # Check if size locking is enabled to "move" instead of "resize"
+        if self.lock_size_btn.isChecked():
+            old_w = old_br[0] - old_ul[0]
+            old_h = old_br[1] - old_ul[1]
+
+            if tuple(new_ul) != old_ul:
+                # Upper Left was modified; Shift Bottom Right
+                new_br[0] = new_ul[0] + old_w
+                new_br[1] = new_ul[1] + old_h
+            elif tuple(new_br) != old_br:
+                # Bottom Right was modified; Shift Upper Left
+                new_ul[0] = new_br[0] - old_w
+                new_ul[1] = new_br[1] - old_h
+
+        new_ul_t = tuple(new_ul)
+        new_br_t = tuple(new_br)
+
+        if new_ul_t != old_ul or new_br_t != old_br:
             cmd = CommandChangeGeometry(
                 self.main_window,
                 self.main_window.selected_object.window_uuid,
-                old_ul, old_br, new_ul, new_br
+                old_ul, old_br, new_ul_t, new_br_t
             )
             self.main_window.undo_stack.push(cmd)
+
+            # Re-sync UI inputs instantly so locking shifts are reflected
+            self.main_window._is_syncing = True
+            self.upper_left_x_spinbox.setValue(new_ul_t[0])
+            self.upper_left_y_spinbox.setValue(new_ul_t[1])
+            self.bottom_right_x_spinbox.setValue(new_br_t[0])
+            self.bottom_right_y_spinbox.setValue(new_br_t[1])
+            self.width_spinbox.setValue(max(0, new_br_t[0] - new_ul_t[0]))
+            self.height_spinbox.setValue(max(0, new_br_t[1] - new_ul_t[1]))
+            self.main_window._is_syncing = False
 
     # --- UNDO STACK COMMAND WRAPPERS ---
     def commit_text_change(self, prop_key, line_edit):
         """Pushes string edits to the Undo Stack."""
         self.commit_property_change(prop_key, line_edit.text())
+
+    def commit_size_change(self):
+        """Fires when manually modifying the Width/Height spinboxes."""
+        if getattr(self.main_window, '_is_undoing', False) or getattr(self.main_window, '_is_syncing', False):
+            return
+
+        if not hasattr(self.main_window, 'selected_object') or not self.main_window.selected_object:
+            return
+
+        screen_rect = self.general_data.get('SCREENRECT', {})
+        old_ul = tuple(screen_rect.get('UPPERLEFT', [0, 0]))
+        old_br = tuple(screen_rect.get('BOTTOMRIGHT', [0, 0]))
+
+        new_w = self.width_spinbox.value()
+        new_h = self.height_spinbox.value()
+
+        # Fix UpperLeft, shift BottomRight
+        new_br = (old_ul[0] + new_w, old_ul[1] + new_h)
+
+        if new_br != old_br:
+            cmd = CommandChangeGeometry(
+                self.main_window,
+                self.main_window.selected_object.window_uuid,
+                old_ul, old_br, old_ul, new_br
+            )
+            self.main_window.undo_stack.push(cmd)
+
+            # Update related inputs
+            self.main_window._is_syncing = True
+            self.bottom_right_x_spinbox.setValue(new_br[0])
+            self.bottom_right_y_spinbox.setValue(new_br[1])
+            self.main_window._is_syncing = False
 
     def commit_property_change(self, prop_key, new_value):
         """Generic property committer for the Undo Stack."""

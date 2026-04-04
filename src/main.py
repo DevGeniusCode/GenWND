@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QAction, QIcon, QUndoStack
 from PyQt6.QtCore import Qt
 
-from commands import CommandChangeGeometry, CommandChangeProperty
+from commands import CommandChangeGeometry
 from object_tree import ObjectTree
 from file_tree import FileTree
 from property_editor import PropertyEditor
@@ -88,19 +88,19 @@ class MainWindow(QMainWindow):
 
         # Edit Menu (Undo/Redo)
         edit_menu = menu_bar.addMenu("Edit")
-        undo_action = self.undo_stack.createUndoAction(self, "Undo")
-        undo_action.setShortcut("Ctrl+Z")
+        self.undo_action = self.undo_stack.createUndoAction(self, "Undo")
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
 
-        redo_action = self.undo_stack.createRedoAction(self, "Redo")
-        redo_action.setShortcut("Ctrl+Y")
+        self.redo_action = self.undo_stack.createRedoAction(self, "Redo")
+        self.redo_action.setShortcut("Ctrl+Y")
+        self.redo_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
 
-        edit_menu.addAction(undo_action)
-        edit_menu.addAction(redo_action)
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
 
-        # Explicitly bind actions to the main window so global shortcuts work
-        # regardless of which child widget currently holds focus.
-        self.addAction(undo_action)
-        self.addAction(redo_action)
+        self.addAction(self.undo_action)
+        self.addAction(self.redo_action)
 
     def _setup_toolbars(self):
         """Initializes the top toolbar containing panel toggle buttons."""
@@ -144,6 +144,10 @@ class MainWindow(QMainWindow):
         # Property Editor Panel
         self.property_editor = PropertyEditor(self, main_window=self)
 
+        # Ensure property editor hierarchy also receives the global shortcuts
+        self.property_editor.addAction(self.undo_action)
+        self.property_editor.addAction(self.redo_action)
+
         # Visual Preview (Canvas)
         self.visual_preview = VisualPreview(self)
         self.visual_preview.setMinimumWidth(300)
@@ -159,10 +163,10 @@ class MainWindow(QMainWindow):
         splitter.setSizes([180, 180, 800, 350])
 
         # Stretch factors (1 = expand to fill space, 0 = keep compact)
-        splitter.setStretchFactor(0, 0) # File Tree (No stretch)
-        splitter.setStretchFactor(1, 0) # Object Tree (No stretch)
-        splitter.setStretchFactor(2, 1) # Visual Preview (Expands!)
-        splitter.setStretchFactor(3, 0) # Property Editor (No stretch)
+        splitter.setStretchFactor(0, 0)  # File Tree (No stretch)
+        splitter.setStretchFactor(1, 0)  # Object Tree (No stretch)
+        splitter.setStretchFactor(2, 1)  # Visual Preview (Expands!)
+        splitter.setStretchFactor(3, 0)  # Property Editor (No stretch)
         splitter.setHandleWidth(10)
 
         # Central Widget Layout
@@ -174,7 +178,7 @@ class MainWindow(QMainWindow):
 
         # Status Bar
         self.status_bar = QStatusBar(self)
-        self.status_bar.setStyleSheet("QStatusBar { padding-left: 8px; }") # <-- Added Padding
+        self.status_bar.setStyleSheet("QStatusBar { padding-left: 8px; }")  # <-- Added Padding
         self.setStatusBar(self.status_bar)
         self.update_status_bar()
 
@@ -191,6 +195,26 @@ class MainWindow(QMainWindow):
         self.visual_preview.item_moved_signal.connect(self.handle_canvas_item_moved)
         self.visual_preview.bulk_geometry_change_signal.connect(self.handle_bulk_geometry_change)
 
+        # Multi-Selection Safety Signals
+        self.visual_preview.multi_selection_signal.connect(self.handle_multi_selection)
+        self.visual_preview.selection_cleared_signal.connect(self.handle_selection_cleared)
+
+    def handle_multi_selection(self):
+        self.selected_object = None
+        self.property_editor.clear()
+        self.status_bar.showMessage("Multiple objects selected. Properties disabled.")
+        # Temporarily block signals to clear tree without triggering loops
+        self.object_tree.tree_view.blockSignals(True)
+        self.object_tree.tree_view.clearSelection()
+        self.object_tree.tree_view.blockSignals(False)
+
+    def handle_selection_cleared(self):
+        self.selected_object = None
+        self.property_editor.clear()
+        self.update_status_bar()
+        self.object_tree.tree_view.blockSignals(True)
+        self.object_tree.tree_view.clearSelection()
+        self.object_tree.tree_view.blockSignals(False)
 
     # --- UI ACTIONS ---
     def toggle_file_tree_visibility(self):
@@ -287,11 +311,15 @@ class MainWindow(QMainWindow):
         if self.selected_object and getattr(self.selected_object, 'window_uuid', None) == window.window_uuid:
             if hasattr(self.property_editor, 'general_properties'):
                 gp = self.property_editor.general_properties
+                w = max(0, br[0] - ul[0])
+                h = max(0, br[1] - ul[1])
                 for spinbox, val in [
                     (gp.upper_left_x_spinbox, ul[0]),
                     (gp.upper_left_y_spinbox, ul[1]),
                     (gp.bottom_right_x_spinbox, br[0]),
-                    (gp.bottom_right_y_spinbox, br[1])
+                    (gp.bottom_right_y_spinbox, br[1]),
+                    (gp.width_spinbox, w),
+                    (gp.height_spinbox, h)
                 ]:
                     spinbox.blockSignals(True)
                     spinbox.setValue(val)

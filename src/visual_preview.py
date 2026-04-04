@@ -519,6 +519,9 @@ class VisualPreview(QWidget):
     item_drag_finished_signal = pyqtSignal(str, tuple, tuple, tuple, tuple)
     bulk_geometry_change_signal = pyqtSignal(str, list)
 
+    multi_selection_signal = pyqtSignal()
+    selection_cleared_signal = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
@@ -664,8 +667,13 @@ class VisualPreview(QWidget):
         except RuntimeError:
             pass
 
-        if not self._is_syncing and len(wnd_items) == 1:
-            self.item_selected_signal.emit(wnd_items[0].window_uuid)
+        if not self._is_syncing:
+            if len(wnd_items) == 1:
+                self.item_selected_signal.emit(wnd_items[0].window_uuid)
+            elif len(wnd_items) > 1:
+                self.multi_selection_signal.emit()
+            elif len(wnd_items) == 0:
+                self.selection_cleared_signal.emit()
 
     def update_toolbar_state(self, selected_count):
         is_enabled = selected_count >= 2

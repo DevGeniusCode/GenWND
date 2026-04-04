@@ -1,6 +1,78 @@
 # --- START OF FILE commands.py ---
 from PyQt6.QtGui import QUndoCommand
 
+class CommandAddObject(QUndoCommand):
+    def __init__(self, main_window, new_object, parent_uuid, insert_index, description="Add Object"):
+        super().__init__(description)
+        self.main_window = main_window
+        self.new_object = new_object
+        self.parent_uuid = parent_uuid
+        self.insert_index = insert_index
+
+    def redo(self):
+        windows = self.main_window.parser.get_windows()
+        parent = self.main_window.object_tree.model._find_window_by_uuid(windows,
+                                                                         self.parent_uuid) if self.parent_uuid else None
+
+        if parent:
+            if not hasattr(parent, "children"):
+                parent.children = []
+            parent.children.insert(self.insert_index, self.new_object)
+        else:
+            windows.insert(self.insert_index, self.new_object)
+
+        self.main_window.update_modified_state(True)
+        self.main_window.handle_object_added(self.new_object)
+
+    def undo(self):
+        windows = self.main_window.parser.get_windows()
+        parent = self.main_window.object_tree.model._find_window_by_uuid(windows,
+                                                                         self.parent_uuid) if self.parent_uuid else None
+
+        if parent and hasattr(parent, "children"):
+            parent.children.remove(self.new_object)
+        elif self.new_object in windows:
+            windows.remove(self.new_object)
+
+        self.main_window.update_modified_state(True)
+        self.main_window.handle_object_deleted(self.new_object.window_uuid)
+
+
+class CommandDeleteObject(QUndoCommand):
+    def __init__(self, main_window, target_object, parent_uuid, insert_index, description="Delete Object"):
+        super().__init__(description)
+        self.main_window = main_window
+        self.target_object = target_object
+        self.parent_uuid = parent_uuid
+        self.insert_index = insert_index
+
+    def redo(self):
+        windows = self.main_window.parser.get_windows()
+        parent = self.main_window.object_tree.model._find_window_by_uuid(windows,
+                                                                         self.parent_uuid) if self.parent_uuid else None
+
+        if parent and hasattr(parent, "children"):
+            parent.children.remove(self.target_object)
+        elif self.target_object in windows:
+            windows.remove(self.target_object)
+
+        self.main_window.update_modified_state(True)
+        self.main_window.handle_object_deleted(self.target_object.window_uuid)
+
+    def undo(self):
+        windows = self.main_window.parser.get_windows()
+        parent = self.main_window.object_tree.model._find_window_by_uuid(windows,
+                                                                         self.parent_uuid) if self.parent_uuid else None
+
+        if parent:
+            if not hasattr(parent, "children"):
+                parent.children = []
+            parent.children.insert(self.insert_index, self.target_object)
+        else:
+            windows.insert(self.insert_index, self.target_object)
+
+        self.main_window.update_modified_state(True)
+        self.main_window.handle_object_added(self.target_object)
 
 class CommandChangeGeometry(QUndoCommand):
     """Command to handle moving and resizing window objects."""

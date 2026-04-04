@@ -297,6 +297,26 @@ class MainWindow(QMainWindow):
                     spinbox.setValue(val)
                     spinbox.blockSignals(False)
 
+    def handle_object_added(self, window_object):
+        """Routes object addition to the Tree and Canvas."""
+        self.object_tree._refresh_tree_state()
+        if hasattr(self, 'visual_preview'):
+            # Fetch the data from the source of truth and pass it down
+            root_windows = self.parser.get_windows()
+            self.visual_preview.add_item_to_canvas(window_object, root_windows)
+
+    def handle_object_deleted(self, window_uuid):
+        """Routes object deletion to the Tree and Canvas, clearing properties if selected."""
+        self.object_tree._refresh_tree_state()
+
+        if hasattr(self, 'visual_preview'):
+            self.visual_preview.remove_item_from_canvas(window_uuid)
+
+        if self.selected_object and self.selected_object.window_uuid == window_uuid:
+            self.selected_object = None
+            self.property_editor.clear()
+            self.update_status_bar()
+
     def handle_bulk_geometry_change(self, macro_name, changes):
         """Pushes a bulk geometry operation as a single Undo macro."""
         self.undo_stack.beginMacro(macro_name)

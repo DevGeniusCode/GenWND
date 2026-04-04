@@ -8,7 +8,7 @@ from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice
 
 from src.window.window_properties import ObjectFactory
-
+from commands import CommandAddObject, CommandDeleteObject
 
 class ObjectTreeModel(QStandardItemModel):
     """Custom model handling hierarchical WND objects and drag/drop reordering."""
@@ -420,7 +420,7 @@ class ObjectTree(QWidget):
             self.add_new_control(selected_item, action.text())
 
     def add_new_control(self, parent_item, new_object_type):
-        """Creates a new WND element and places it into the hierarchy."""
+        """Creates a new WND element and queues an undoable command."""
         factory = ObjectFactory()
         file_name = os.path.basename(self.main_window.selected_file) if self.main_window.selected_file else "Unknown"
         new_object = factory.create_object(
@@ -429,42 +429,48 @@ class ObjectTree(QWidget):
             file_name=file_name
         )
 
+        parent_uuid = None
+        insert_index = 0
+
         if parent_item:
             parent_window = parent_item.data()
             # If target is a USER container, add as child
             if parent_window.properties.get('WINDOWTYPE') == 'USER':
-                if not hasattr(parent_window, "children"):
-                    parent_window.children = []
-                parent_window.children.append(new_object)
+                parent_uuid = parent_window.window_uuid
+                insert_index = len(getattr(parent_window, "children", []))
             else:
                 # Add as sibling below the selected item
                 parent = self.model._find_window_parent(self.model.parser_windows, parent_window.window_uuid)
                 if parent:
-                    idx = parent.children.index(parent_window)
-                    parent.children.insert(idx + 1, new_object)
+                    parent_uuid = parent.window_uuid
+                    insert_index = parent.children.index(parent_window) + 1
                 else:
-                    idx = self.model.parser_windows.index(parent_window)
-                    self.model.parser_windows.insert(idx + 1, new_object)
+                    insert_index = self.model.parser_windows.index(parent_window) + 1
         else:
-            # Add to root if nothing is selected
-            self.model.parser_windows.append(new_object)
+            insert_index = len(self.model.parser_windows)
 
-        self._refresh_tree_state()
+        cmd = CommandAddObject(self.main_window, new_object, parent_uuid, insert_index)
+        self.main_window.undo_stack.push(cmd)
+
 
     def delete_selected_item(self, item):
-        """Removes the active element from the underlying data model."""
+        """Queues the removal of the active element as an undoable command."""
         selected_window = item.data()
         if not selected_window:
             return
 
+        parent_uuid = None
+        insert_index = 0
         parent = self.model._find_window_parent(self.model.parser_windows, selected_window.window_uuid)
-        if parent and hasattr(parent, "children"):
-            if selected_window in parent.children:
-                parent.children.remove(selected_window)
-        elif selected_window in self.model.parser_windows:
-            self.model.parser_windows.remove(selected_window)
 
-        self._refresh_tree_state()
+        if parent and hasattr(parent, "children"):
+            parent_uuid = parent.window_uuid
+            insert_index = parent.children.index(selected_window)
+        elif selected_window in self.model.parser_windows:
+            insert_index = self.model.parser_windows.index(selected_window)
+
+        cmd = CommandDeleteObject(self.main_window, selected_window, parent_uuid, insert_index)
+        self.main_window.undo_stack.push(cmd)
 
     def _refresh_tree_state(self):
         """Triggers a complete model refresh and signals modification to the main window."""

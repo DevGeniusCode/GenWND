@@ -752,6 +752,58 @@ class VisualPreview(QWidget):
             if not is_visible:
                 self.items_map[uuid].setSelected(False)
 
+    def add_item_to_canvas(self, window, root_windows):
+        """Safely instantiates a single new item on the canvas."""
+        if window.window_uuid in self.items_map:
+            return  # Already exists
+
+        props = window.properties
+        screenrect = props.get('SCREENRECT', {})
+        ul = screenrect.get('UPPERLEFT', [0, 0])
+        br = screenrect.get('BOTTOMRIGHT', [100, 100]) # Default size fallback
+        w = max(br[0] - ul[0], 10)
+        h = max(br[1] - ul[1], 10)
+
+        # Calculate rough Z-depth based on hierarchy
+        def get_depth(uuid, windows, current_depth=1):
+            for wnd in windows:
+                if wnd.window_uuid == uuid: return current_depth
+                if hasattr(wnd, 'children'):
+                    d = get_depth(uuid, wnd.children, current_depth + 1)
+                    if d: return d
+            return 1
+
+        depth = get_depth(window.window_uuid, root_windows)
+
+        rect_item = WndGraphicsItem(window, self, w, h)
+        rect_item.setPos(ul[0], ul[1])
+        rect_item.original_z = depth
+        rect_item.setZValue(depth)
+        self.items_map[window.window_uuid] = rect_item
+
+        name = props.get('NAME', 'Unnamed')
+        wtype = props.get('WINDOWTYPE', 'UNKNOWN')
+        label = QGraphicsTextItem(f"{wtype}: {name}")
+        label.setParentItem(rect_item)
+        label.setPos(2, 2)
+        label.setDefaultTextColor(QColor(255, 255, 255))
+        label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+
+        self.scene.addItem(rect_item)
+
+        # Render children if this was a copy/pasted folder or container
+        if hasattr(window, 'children') and window.children:
+            self._render_windows(window.children, depth + 1)
+
+    def remove_item_from_canvas(self, window_uuid):
+        """Safely removes an item from the scene for garbage collection."""
+        if window_uuid in self.items_map:
+            item = self.items_map.pop(window_uuid)
+            self.scene.removeItem(item)
+
+            # Note: Do not manually 'del item', let Python GC handle it once removed from scene
+            # to prevent segfaults with Qt's underlying C++ management.
+
     def _render_windows(self, windows, depth):
         for window in windows:
             props = window.properties

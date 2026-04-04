@@ -2,8 +2,8 @@ from src.window.controls.user import UserControl
 
 
 class VertSliderControl(UserControl):
-    def __init__(self, window_uuid, properties=None, children=None):
-        super().__init__(window_uuid, properties, children)
+    def __init__(self, window_uuid, properties=None, children=None, file_name=None):
+        super().__init__(window_uuid, properties, children, file_name)
         # Assign default values for VertSliderControl
         if properties:
            self.properties.update(properties)

@@ -359,6 +359,8 @@ class PreviewGraphicsView(QGraphicsView):
         self.grid_size = 20
         self._zoom_level = 100
 
+        self.widescreen_preview = False
+
     def set_show_grid(self, show):
         self.show_grid = show
         self.scene().invalidate(self.sceneRect(), QGraphicsScene.SceneLayer.ForegroundLayer)
@@ -438,6 +440,13 @@ class PreviewGraphicsView(QGraphicsView):
 
             delattr(self, '_drag_start_geometries')
 
+    def set_widescreen_preview(self, enabled):
+        self.widescreen_preview = enabled
+        if enabled:
+            self.setTransform(self.transform().fromScale(1.3333, 1.0))
+        else:
+            self.setTransform(self.transform().fromScale(1.0, 1.0))
+
 
 class VisualPreview(QWidget):
     """Main Canvas container combining the Toolbar, the View, and the Control Bar."""
@@ -490,6 +499,15 @@ class VisualPreview(QWidget):
         add_action("Extend Right", 'ext_right', True)
         add_action("Extend Top", 'ext_top', True)
         add_action("Extend Bottom", 'ext_bottom', True)
+
+        # Widescreen Preview Toggle
+        self.widescreen_action = QAction("Widescreen Preview", self)
+        self.widescreen_action.setCheckable(True)
+        self.widescreen_action.triggered.connect(self.toggle_widescreen_preview)
+        self.toolbar.addAction(self.widescreen_action)
+
+    def toggle_widescreen_preview(self):
+        self.view.set_widescreen_preview(self.widescreen_action.isChecked())
 
     def _setup_view(self):
         self.scene = QGraphicsScene(self)
@@ -609,7 +627,6 @@ class VisualPreview(QWidget):
             rect = i.rect()
             old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
             old_br = (int(i.scenePos().x() + rect.width()), int(i.scenePos().y() + rect.height()))
-
             new_ul_x, new_ul_y = old_ul[0], old_ul[1]
             new_br_x, new_br_y = old_br[0], old_br[1]
 
@@ -637,210 +654,3 @@ class VisualPreview(QWidget):
         items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
         if len(items) < 2: return
         self._is_syncing = True
-
-        min_x = min(i.scenePos().x() for i in items)
-        max_r = max(i.scenePos().x() + i.rect().width() for i in items)
-        min_y = min(i.scenePos().y() for i in items)
-        max_b = max(i.scenePos().y() + i.rect().height() for i in items)
-
-        center_x = (min_x + max_r) / 2
-        center_y = (min_y + max_b) / 2
-
-        changes = []
-
-        if alignment == 'dist_h':
-            items.sort(key=lambda i: i.scenePos().x())
-            total_w = sum(i.rect().width() for i in items)
-            space = (max_r - min_x - total_w) / (len(items) - 1) if len(items) > 1 else 0
-            curr_x = min_x
-            for i in items:
-                new_x = curr_x
-                curr_x += i.rect().width() + space
-                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
-                old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
-                new_ul = (int(new_x), old_ul[1])
-                new_br = (int(new_x + i.rect().width()), old_br[1])
-                changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
-
-        elif alignment == 'dist_v':
-            items.sort(key=lambda i: i.scenePos().y())
-            total_h = sum(i.rect().height() for i in items)
-            space = (max_b - min_y - total_h) / (len(items) - 1) if len(items) > 1 else 0
-            curr_y = min_y
-            for i in items:
-                new_y = curr_y
-                curr_y += i.rect().height() + space
-                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
-                old_br = (int(i.scenePos().x() + i.rect().width()), int(i.scenePos().y() + i.rect().height()))
-                new_ul = (old_ul[0], int(new_y))
-                new_br = (old_br[0], int(new_y + i.rect().height()))
-                changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
-        else:
-            for i in items:
-                rect = i.rect()
-                old_ul = (int(i.scenePos().x()), int(i.scenePos().y()))
-                old_br = (int(i.scenePos().x() + rect.width()), int(i.scenePos().y() + rect.height()))
-                new_x, new_y = old_ul[0], old_ul[1]
-
-                if alignment == 'left': new_x = min_x
-                elif alignment == 'right': new_x = max_r - rect.width()
-                elif alignment == 'hcenter': new_x = center_x - (rect.width() / 2)
-                elif alignment == 'top': new_y = min_y
-                elif alignment == 'bottom': new_y = max_b - rect.height()
-                elif alignment == 'vcenter': new_y = center_y - (rect.height() / 2)
-
-                new_ul = (int(new_x), int(new_y))
-                new_br = (int(new_x + rect.width()), int(new_y + rect.height()))
-
-                if old_ul != new_ul or old_br != new_br:
-                    changes.append((i.window_uuid, old_ul, old_br, new_ul, new_br))
-
-        if changes:
-            self.bulk_geometry_change_signal.emit("Align Items", changes)
-
-        self._is_syncing = False
-
-    def handle_item_moved(self, window, new_ul, new_br):
-        self.item_moved_signal.emit(window, new_ul, new_br)
-
-        # Keep the group overlay box glued to the items if they are dragged around
-        wnd_items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
-        if len(wnd_items) > 1 and not getattr(self.group_overlay, 'is_resizing', False):
-            self.group_overlay.sync_bounds(wnd_items)
-
-    def select_item(self, uuid):
-        if uuid in self.items_map:
-            item = self.items_map[uuid]
-
-            # Prevent circular jumping bug: if it's already the only selected item, do nothing
-            if item.isSelected() and len(self.scene.selectedItems()) == 1:
-                return
-
-            self._is_syncing = True
-            self.scene.clearSelection()
-            item.setSelected(True)
-            self.view.ensureVisible(item)
-            self._is_syncing = False
-
-    def update_item_geometry_from_data(self, window):
-        if not window or window.window_uuid not in self.items_map:
-            return
-        self._is_syncing = True
-        item = self.items_map[window.window_uuid]
-        ul = window.properties['SCREENRECT'].get('UPPERLEFT', [0, 0])
-        br = window.properties['SCREENRECT'].get('BOTTOMRIGHT', [0, 0])
-        w = br[0] - ul[0]
-        h = br[1] - ul[1]
-        if w > 0 and h > 0:
-            item.setPos(ul[0], ul[1])
-            item.setRect(0, 0, w, h)
-        self._is_syncing = False
-
-    def load_hierarchy(self, windows):
-        self.clear()
-        if not windows:
-            return
-
-        self.view_stack.setCurrentWidget(self.view) # <-- Show the canvas
-
-        res_w, res_h = 800, 600
-        if 'SCREENRECT' in windows[0].properties:
-            res = windows[0].properties['SCREENRECT'].get('CREATIONRESOLUTION', [800, 600])
-            res_w, res_h = res[0], res[1]
-
-        bg_rect = QGraphicsRectItem(0, 0, res_w, res_h)
-        bg_rect.setBrush(QBrush(QColor(50, 50, 50)))
-        bg_rect.setPen(QPen(QColor(255, 255, 255), 2))
-        bg_rect.setZValue(-1)
-        self.scene.addItem(bg_rect)
-        self.scene.setSceneRect(-100, -100, res_w + 200, res_h + 200)
-
-        self._render_windows(windows, depth=1)
-
-    def set_item_visibility(self, uuid, is_visible):
-        """Toggles the visibility of a graphics item based on the Object Tree toggle."""
-        if uuid in self.items_map:
-            self.items_map[uuid].setVisible(is_visible)
-
-            if not is_visible:
-                self.items_map[uuid].setSelected(False)
-
-    def add_item_to_canvas(self, window, root_windows):
-        """Safely instantiates a single new item on the canvas."""
-        if window.window_uuid in self.items_map:
-            return  # Already exists
-
-        props = window.properties
-        screenrect = props.get('SCREENRECT', {})
-        ul = screenrect.get('UPPERLEFT', [0, 0])
-        br = screenrect.get('BOTTOMRIGHT', [100, 100]) # Default size fallback
-        w = max(br[0] - ul[0], 10)
-        h = max(br[1] - ul[1], 10)
-
-        # Calculate rough Z-depth based on hierarchy
-        def get_depth(uuid, windows, current_depth=1):
-            for wnd in windows:
-                if wnd.window_uuid == uuid: return current_depth
-                if hasattr(wnd, 'children'):
-                    d = get_depth(uuid, wnd.children, current_depth + 1)
-                    if d: return d
-            return 1
-
-        depth = get_depth(window.window_uuid, root_windows)
-
-        rect_item = WndGraphicsItem(window, self, w, h)
-        rect_item.setPos(ul[0], ul[1])
-        rect_item.original_z = depth
-        rect_item.setZValue(depth)
-        self.items_map[window.window_uuid] = rect_item
-
-        name = props.get('NAME', 'Unnamed')
-        wtype = props.get('WINDOWTYPE', 'UNKNOWN')
-        label = QGraphicsTextItem(f"{wtype}: {name}")
-        label.setParentItem(rect_item)
-        label.setPos(2, 2)
-        label.setDefaultTextColor(QColor(255, 255, 255))
-        label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-
-        self.scene.addItem(rect_item)
-
-        # Render children if this was a copy/pasted folder or container
-        if hasattr(window, 'children') and window.children:
-            self._render_windows(window.children, depth + 1)
-
-    def remove_item_from_canvas(self, window_uuid):
-        """Safely removes an item from the scene for garbage collection."""
-        if window_uuid in self.items_map:
-            item = self.items_map.pop(window_uuid)
-            self.scene.removeItem(item)
-
-            # Note: Do not manually 'del item', let Python GC handle it once removed from scene
-            # to prevent segfaults with Qt's underlying C++ management.
-
-    def _render_windows(self, windows, depth):
-        for window in windows:
-            props = window.properties
-            screenrect = props.get('SCREENRECT')
-            if screenrect:
-                ul = screenrect.get('UPPERLEFT', [0, 0])
-                br = screenrect.get('BOTTOMRIGHT', [0, 0])
-                w = br[0] - ul[0]
-                h = br[1] - ul[1]
-                if w > 0 and h > 0:
-                    rect_item = WndGraphicsItem(window, self, w, h)
-                    rect_item.setPos(ul[0], ul[1])
-                    rect_item.original_z = depth
-                    rect_item.setZValue(depth)
-                    self.items_map[window.window_uuid] = rect_item
-
-                    name = props.get('NAME', 'Unnamed')
-                    wtype = props.get('WINDOWTYPE', 'UNKNOWN')
-                    label = QGraphicsTextItem(f"{wtype}: {name}")
-                    label.setParentItem(rect_item)
-                    label.setPos(2, 2)
-                    label.setDefaultTextColor(QColor(255, 255, 255))
-                    label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-                    self.scene.addItem(rect_item)
-
-            if hasattr(window, 'children') and window.children:
-                self._render_windows(window.children, depth + 1)

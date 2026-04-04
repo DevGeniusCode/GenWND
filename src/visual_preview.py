@@ -7,6 +7,179 @@ from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF
 
 
+class GroupResizeOverlay(QGraphicsRectItem):
+    """An overlay bounding box for scaling multiple selected items proportionally."""
+    HANDLE_SIZE = 8
+
+    def __init__(self, preview_widget):
+        super().__init__()
+        self.preview_widget = preview_widget
+        self.setZValue(10000)
+        self.hide()
+        self.setAcceptHoverEvents(True)
+
+        self.active_handle = None
+        self.is_resizing = False
+        self.items_to_resize = []
+
+        # Dashed orange styling for the group box
+        self.setPen(QPen(QColor(255, 150, 50, 255), 1, Qt.PenStyle.DashLine))
+        self.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+
+    def boundingRect(self):
+        margin = self.HANDLE_SIZE / 2 + self.pen().widthF()
+        return self.rect().adjusted(-margin, -margin, margin, margin)
+
+    def sync_bounds(self, items):
+        if len(items) < 2:
+            self.hide()
+            return
+
+        self.items_to_resize = items
+        min_x = min(i.scenePos().x() for i in items)
+        min_y = min(i.scenePos().y() for i in items)
+        max_r = max(i.scenePos().x() + i.rect().width() for i in items)
+        max_b = max(i.scenePos().y() + i.rect().height() for i in items)
+
+        self.setPos(min_x, min_y)
+        self.setRect(0, 0, max_r - min_x, max_b - min_y)
+        self.show()
+
+    def hoverMoveEvent(self, event):
+        handle = self._get_handle_at(event.pos())
+        if handle in ('TL', 'BR'): self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif handle in ('TR', 'BL'): self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif handle in ('T', 'B'): self.setCursor(Qt.CursorShape.SizeVerCursor)
+        elif handle in ('L', 'R'): self.setCursor(Qt.CursorShape.SizeHorCursor)
+        else: self.setCursor(Qt.CursorShape.ArrowCursor)
+        super().hoverMoveEvent(event)
+
+    def mousePressEvent(self, event):
+        self.active_handle = self._get_handle_at(event.pos())
+        if self.active_handle:
+            self.is_resizing = True
+            self._start_rect = self.rect()
+            self._start_pos = self.scenePos()
+            self._start_geometries = {}
+            for item in self.items_to_resize:
+                self._start_geometries[item] = (item.scenePos(), item.rect())
+
+            # Setup the view's undo dictionary to piggyback on the macro emitter
+            self.preview_widget.view._drag_start_geometries = {}
+            for item in self.items_to_resize:
+                ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+                br = (int(item.scenePos().x() + item.rect().width()), int(item.scenePos().y() + item.rect().height()))
+                self.preview_widget.view._drag_start_geometries[item] = (ul, br)
+
+            event.accept()
+        else:
+            event.ignore()  # Allow underlying items to handle moving/dragging
+
+    def mouseMoveEvent(self, event):
+        if self.is_resizing and self.active_handle:
+            rect = self._start_rect
+            ul = QPointF(self._start_pos)
+            br = QPointF(ul.x() + rect.width(), ul.y() + rect.height())
+
+            scene_pos = event.scenePos()
+
+            if 'L' in self.active_handle: ul.setX(min(scene_pos.x(), br.x() - 10))
+            if 'R' in self.active_handle: br.setX(max(scene_pos.x(), ul.x() + 10))
+            if 'T' in self.active_handle: ul.setY(min(scene_pos.y(), br.y() - 10))
+            if 'B' in self.active_handle: br.setY(max(scene_pos.y(), ul.y() + 10))
+
+            new_w = br.x() - ul.x()
+            new_h = br.y() - ul.y()
+
+            scale_x = new_w / rect.width() if rect.width() != 0 else 1
+            scale_y = new_h / rect.height() if rect.height() != 0 else 1
+
+            self.preview_widget._is_syncing = True
+
+            # Scale and translate all enclosed items
+            for item, (start_pos, start_rect) in self._start_geometries.items():
+                item.prepareGeometryChange()
+
+                dx = start_pos.x() - self._start_pos.x()
+                dy = start_pos.y() - self._start_pos.y()
+
+                item_new_x = ul.x() + dx * scale_x
+                item_new_y = ul.y() + dy * scale_y
+                item_new_w = start_rect.width() * scale_x
+                item_new_h = start_rect.height() * scale_y
+
+                item.setPos(item_new_x, item_new_y)
+                item.setRect(0, 0, item_new_w, item_new_h)
+
+                item_new_ul = (int(item_new_x), int(item_new_y))
+                item_new_br = (int(item_new_x + item_new_w), int(item_new_y + item_new_h))
+                self.preview_widget.handle_item_moved(item.window, item_new_ul, item_new_br)
+
+            self.setPos(ul)
+            self.setRect(0, 0, new_w, new_h)
+            self.preview_widget._is_syncing = False
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.is_resizing:
+            self.is_resizing = False
+            self.active_handle = None
+
+            # Piggyback on the View's mechanism to emit the Undo macro
+            if hasattr(self.preview_widget.view, '_drag_start_geometries'):
+                changes = []
+                for item, (old_ul, old_br) in self.preview_widget.view._drag_start_geometries.items():
+                    new_ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+                    new_br = (int(item.scenePos().x() + item.rect().width()), int(item.scenePos().y() + item.rect().height()))
+                    if old_ul != new_ul or old_br != new_br:
+                        changes.append((item.window_uuid, old_ul, old_br, new_ul, new_br))
+                if changes:
+                    self.preview_widget.bulk_geometry_change_signal.emit("Group Resize", changes)
+                delattr(self.preview_widget.view, '_drag_start_geometries')
+            return
+
+        super().mouseReleaseEvent(event)
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+        painter.setPen(QPen(QColor(0, 0, 0), 1))
+
+        rect = self.rect()
+        hs = self.HANDLE_SIZE
+        half = hs / 2
+
+        handles = [
+            QRectF(0 - half, 0 - half, hs, hs),
+            QRectF(rect.width() / 2 - half, 0 - half, hs, hs),
+            QRectF(rect.width() - half, 0 - half, hs, hs),
+            QRectF(rect.width() - half, rect.height() / 2 - half, hs, hs),
+            QRectF(rect.width() - half, rect.height() - half, hs, hs),
+            QRectF(rect.width() / 2 - half, rect.height() - half, hs, hs),
+            QRectF(0 - half, rect.height() - half, hs, hs),
+            QRectF(0 - half, rect.height() / 2 - half, hs, hs)
+        ]
+        for h in handles:
+            painter.drawRect(h)
+
+    def _get_handle_at(self, pos):
+        hs = self.HANDLE_SIZE
+        rect = self.rect()
+        if pos.y() < hs:
+            if pos.x() < hs: return 'TL'
+            if pos.x() > rect.width() - hs: return 'TR'
+            return 'T'
+        elif pos.y() > rect.height() - hs:
+            if pos.x() < hs: return 'BL'
+            if pos.x() > rect.width() - hs: return 'BR'
+            return 'B'
+        else:
+            if pos.x() < hs: return 'L'
+            if pos.x() > rect.width() - hs: return 'R'
+        return None
+
 class WndGraphicsItem(QGraphicsRectItem):
     """Represents a selectable, draggable, and resizable WND object on the canvas."""
     HANDLE_SIZE = 8
@@ -43,7 +216,7 @@ class WndGraphicsItem(QGraphicsRectItem):
 
     def hoverMoveEvent(self, event):
         """Change the cursor when hovering over resize handles."""
-        if self.isSelected():
+        if self.isSelected() and self.scene() and len(self.scene().selectedItems()) == 1:
             handle = self._get_handle_at(event.pos())
             if handle in ('TL', 'BR'):
                 self.setCursor(Qt.CursorShape.SizeFDiagCursor)
@@ -61,7 +234,7 @@ class WndGraphicsItem(QGraphicsRectItem):
 
     def mousePressEvent(self, event):
         """Detect if the user clicked a resize handle or is just dragging the item."""
-        if self.isSelected():
+        if self.isSelected() and self.scene() and len(self.scene().selectedItems()) == 1:
             self.active_handle = self._get_handle_at(event.pos())
             if self.active_handle:
                 self.is_resizing = True
@@ -131,7 +304,7 @@ class WndGraphicsItem(QGraphicsRectItem):
     def paint(self, painter, option, widget=None):
         """Draw the item, and if selected, draw the 8 resize handles on top."""
         super().paint(painter, option, widget)
-        if self.isSelected():
+        if self.isSelected() and self.scene() and len(self.scene().selectedItems()) == 1:
             painter.setBrush(QBrush(QColor(255, 255, 255)))
             painter.setPen(QPen(QColor(0, 0, 0), 1))
 
@@ -326,6 +499,10 @@ class VisualPreview(QWidget):
         self.view.setScene(self.scene)
         self.layout.addWidget(self.view, stretch=1)
 
+        # Inject the group bounding box overlay
+        self.group_overlay = GroupResizeOverlay(self)
+        self.scene.addItem(self.group_overlay)
+
     def _setup_bottom_bar(self):
         self.bottom_bar = QWidget(self)
         self.bottom_layout = QHBoxLayout(self.bottom_bar)
@@ -374,12 +551,18 @@ class VisualPreview(QWidget):
         self.scene.clear()
         self.items_map.clear()
         self.update_toolbar_state(0)
+        # Re-add the overlay because self.scene.clear() removed it
+        self.group_overlay = GroupResizeOverlay(self)
+        self.scene.addItem(self.group_overlay)
 
     def handle_selection_changed(self):
         selected = self.scene.selectedItems()
         wnd_items = [i for i in selected if isinstance(i, WndGraphicsItem)]
 
         self.update_toolbar_state(len(wnd_items))
+
+        # Sync the overlay bounding box for multi-selection
+        self.group_overlay.sync_bounds(wnd_items)
 
         if not self._is_syncing and len(wnd_items) == 1:
             self.item_selected_signal.emit(wnd_items[0].window_uuid)
@@ -498,6 +681,11 @@ class VisualPreview(QWidget):
 
     def handle_item_moved(self, window, new_ul, new_br):
         self.item_moved_signal.emit(window, new_ul, new_br)
+
+        # Keep the group overlay box glued to the items if they are dragged around
+        wnd_items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
+        if len(wnd_items) > 1 and not getattr(self.group_overlay, 'is_resizing', False):
+            self.group_overlay.sync_bounds(wnd_items)
 
     def select_item(self, uuid):
         self._is_syncing = True

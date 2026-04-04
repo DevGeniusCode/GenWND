@@ -560,6 +560,7 @@ class VisualPreview(QWidget):
         self.zoom_label.setText(f"{level}%")
 
     def clear(self):
+        self._is_clearing = True
         self.scene.clear()
         self.items_map.clear()
         self.update_toolbar_state(0)
@@ -567,15 +568,22 @@ class VisualPreview(QWidget):
         # Re-add the overlay because self.scene.clear() removed it
         self.group_overlay = GroupResizeOverlay(self)
         self.scene.addItem(self.group_overlay)
+        self._is_clearing = False
 
     def handle_selection_changed(self):
+        if getattr(self, '_is_clearing', False):
+            return
+
         selected = self.scene.selectedItems()
         wnd_items = [i for i in selected if isinstance(i, WndGraphicsItem)]
 
         self.update_toolbar_state(len(wnd_items))
 
-        # Sync the overlay bounding box for multi-selection
-        self.group_overlay.sync_bounds(wnd_items)
+        # Sync the overlay bounding box for multi-selection safely
+        try:
+            self.group_overlay.sync_bounds(wnd_items)
+        except RuntimeError:
+            pass
 
         if not self._is_syncing and len(wnd_items) == 1:
             self.item_selected_signal.emit(wnd_items[0].window_uuid)
@@ -701,13 +709,18 @@ class VisualPreview(QWidget):
             self.group_overlay.sync_bounds(wnd_items)
 
     def select_item(self, uuid):
-        self._is_syncing = True
-        self.scene.clearSelection()
         if uuid in self.items_map:
             item = self.items_map[uuid]
+
+            # Prevent circular jumping bug: if it's already the only selected item, do nothing
+            if item.isSelected() and len(self.scene.selectedItems()) == 1:
+                return
+
+            self._is_syncing = True
+            self.scene.clearSelection()
             item.setSelected(True)
             self.view.ensureVisible(item)
-        self._is_syncing = False
+            self._is_syncing = False
 
     def update_item_geometry_from_data(self, window):
         if not window or window.window_uuid not in self.items_map:

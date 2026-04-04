@@ -1,15 +1,49 @@
-# GenWND - Tool for Analyzing and Editing WND Files
+# GenWND - Visual UI Editor for Command & Conquer: Generals – Zero Hour
 
-**GenWND** is a software tool designed to analyze and edit **WND** files, which contain UI settings for the game **Command & Conquer: Generals – Zero Hour**. The tool allows for loading, analyzing, and displaying window (Windows) objects from a WND file in a graphical and organized manner. It was built using **PyQt6** and provides an intuitive user interface for managing and understanding WND files.
+**GenWND** is an advanced software tool designed to parse, analyze, and visually edit **WND** files, which govern the UI layouts and elements in **Command & Conquer: Generals – Zero Hour**. Built with **Python 3.10** and **PyQt6**, GenWND bridges the gap between raw text configuration files and modern visual editing.
 
-The project is inspired by an existing proprietary software with the name WNDEdit, developed by deezer. The goal of GenWND is to enhance the functionality and features of the original tool, while maintaining the original purpose and design.
+Inspired by the proprietary *WNDEdit* tool developed by deezer, GenWND extends the original functionality by introducing a robust WYSIWYG (What You See Is What You Get) canvas, advanced layout alignment tools, and a reliable Undo/Redo infrastructure.
+![img.png](resources/img.png)
+![img_1.png](resources/img_1.png)
+![img_2.png](resources/img_2.png)
+---
 
+## ✨ Key Features
 
-## Project Structure
+### 🎨 Interactive Visual Canvas
+- **WYSIWYG Editing:** View your UI elements rendered on a visual canvas (`QGraphicsView`).
+- **Direct Manipulation:** Select, drag, and resize objects directly on the screen.
+- **Smart Navigation:** Use `Ctrl + Mouse Wheel` to zoom seamlessly while maintaining standard scrolling capabilities.
+- **Foreground Grid:** Toggleable grid overlay to assist with precise element placement.
 
-The project is structured as follows:
+### 🌳 Advanced Object Management
+- **Hierarchical Object Tree:** Navigate the complex parent-child relationships of WND files with ease.
+- **Visibility Toggles:** Quickly hide or show specific elements on the canvas using the "Eye" icon in the object tree.
+- **Two-Way Sync:** Changes made in the canvas instantly update the Object Tree and Property Editor, and vice versa.
 
-```
+### ⏪ Fail-Safe Undo/Redo System
+- **Command Pattern Architecture:** Every action (move, resize, add, delete) is safely recorded.
+- **Macro Operations:** Aligning multiple elements is grouped into a single undoable action, keeping your history clean.
+- **Risk-Free Editing:** Make sweeping changes with the confidence that you can always revert them (`Ctrl+Z` / `Ctrl+Y`).
+
+### 📐 Layout & Alignment Tools
+- **Alignment Toolbar:** Quickly align selected elements (Centers, Edges, Distribute).
+- **Expansion Tools:** Match boundaries and sizes across multiple selected UI components instantly.
+- **Live Property Editor:** Fine-tune raw text properties and coordinates manually when pixel-perfect precision is required.
+
+---
+
+## 🏗️ Technical Architecture
+
+GenWND has evolved from a simple parser into a robust Model-View-ViewModel (MVVM) application:
+
+1. **Central Source of Truth:** The parsed WND dictionary acts as the core data model.
+2. **Command Pattern (`QUndoCommand`):** All modifications to the data model are handled via isolated command objects, completely decoupling the UI from direct data mutation and preventing memory leaks.
+3. **Targeted Rendering (`QGraphicsScene`):** The canvas updates specifically targeted elements via signals, avoiding expensive full-scene redraws and protecting memory states during C++ Garbage Collection.
+
+### Project Structure
+
+```text
 GenWND/
 ├── readme.md
 ├── logs/
@@ -19,96 +53,84 @@ GenWND/
 │   ├── example.wnd
 │   └── styles.qss
 ├── src/
-│   ├── error_handler.py
-│   ├── file_tree.py
-│   ├── log_manager.py
-│   ├── main.py
-│   ├── object_tree.py
-│   ├── property_editor.py
-│   ├── window/
-│   │   ├── line_iterator.py
-│   │   ├── window.py
-│   │   └── wnd_parser.py
+│   ├── main.py                 # Main Application Window and routing layer
+│   ├── object_tree.py          # QTreeWidget managing WND hierarchy and visibility
+│   ├── visual_preview.py       # QGraphicsView/Scene managing the interactive Canvas
+│   ├── property_editor.py      # Editor for fine-tuning individual window properties
+│   ├── file_tree.py            # File navigation
+│   ├── commands.py             # QUndoCommand classes (Undo/Redo logic)
+│   ├── error_handler.py        # Non-blocking parsing error management
+│   ├── log_manager.py          # Log rotation and management
+│   └── window/
+│       ├── wnd_parser.py       # Core parser for generating the central dictionary
+│       ├── window.py           # Window properties object definition
+│       └── line_iterator.py    # Line-by-line WND file processing
 ```
 
-### File Descriptions
+---
 
-1. **main.py**: The main UI file. Displays the graphical interface, which is divided into three parts:
-   - The left section for folder management.
-   - The next section for navigating objects in the WND file.
-   - The section to display the properties of the selected object.
-   
-2. **error_handler.py**: Error handling. At error level 2, it allows skipping errors without stopping the process (for example, when loading a WND file, if errors are not skipped, they will stop the loading process).
+## 🛠️ How to Use
 
-3. **file_tree.py**: File tree management. Allows navigation between files in the folder.
+### System Requirements
+- Python 3.10+
+- PyQt6
 
-4. **log_manager.py**: Log management. Creates a new log file and replaces the old one with `log_current_old.log`.
+### Installation
 
-5. **object_tree.py**: Creates an object tree from the WND file and displays the windows and their hierarchy.
+1. Clone the repository:
+   ```bash
+   git clone [https://github.com/DevGeniusCode/GenWND.git](https://github.com/DevGeniusCode/GenWND.git)
+   cd GenWND
+   ```
 
-6. **property_editor.py**: Window property editor. Displays and allows changes to the selected window's properties.
+2. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-7. **window/line_iterator.py**: Allows line-by-line iteration through the WND file, including a line counter and filename.
+### Running the Software
+Execute the main entry point to launch the editor:
+```bash
+python src/main.py
+```
 
-8. **window/window.py**: Processes a single window structure from the WND file, creating objects with window properties (WindowProperties).
+---
 
-9. **window/wnd_parser.py**: A processing file that parses a WND file and returns an object representing the window hierarchy.
+## 📄 WND File Structure (Internal Representation)
 
-## WND File Example
+A WND file is a text file containing hierarchical UI settings. When GenWND parses it, it creates an organized Python dictionary structure:
 
-A WND file is a simple text file containing UI settings for the game. Here's an example of a WND file:
-
+**Raw WND Example:**
 ```txt
 WINDOW
   WINDOWTYPE = USER
-  NAME = "dummy"
-  ... rest of window properties
+  NAME = "MainMenu"
+  ...
   CHILD
-  WINDOW ; child
-    WINDOWTYPE = CHECKBOX
-    ... rest of window child properties
+  WINDOW ; child button
+    WINDOWTYPE = BUTTON
+    ...
   END
   ENDALLCHILDREN
 END
 ```
 
-After parsing the file, a Python object like this would be generated:
-
+**GenWND Parsed Object:**
 ```python
 parser = {
     'file_metadata': {
-        'FILE_VERSION': 'num',
-        'LAYOUTBLOCK': {
-            'LAYOUTINIT': 'value',
-            'LAYOUTSHUTDOWN': 'value',
-            'LAYOUTUPDATE': 'value'
-        }
+        'FILE_VERSION': '...',
+        'LAYOUTBLOCK': { ... }
     },
     'windows': [
         Window(
-            key=uuid1,  # Random UUID for each window
-            properties={'OPTION1': 'value1', 'OPTION2': 'value2'},
+            key=uuid1,  # Unique tracker for synchronization
+            properties={'WINDOWTYPE': 'USER', 'NAME': 'MainMenu'},
             children=[
                 Window(
                     key=uuid2,
-                    properties={'OPTION1': 'value1', 'OPTION2': 'value2'},
+                    properties={'WINDOWTYPE': 'BUTTON'},
                     children=[]
-                ),
-                Window(
-                    key=uuid3,
-                    properties={'OPTION3': 'value3'},
-                    children=[]
-                ),
-                Window(
-                    key=uuid4,
-                    properties={'OPTION4': 'value4'},
-                    children=[
-                        Window(
-                            key=uuid5,
-                            properties={'OPTION5': 'value5'},
-                            children=[]
-                        )
-                    ]
                 )
             ]
         )
@@ -116,50 +138,11 @@ parser = {
 }
 ```
 
-## How to Use
+---
 
-### System Requirements
+## 🤝 Contributions
+Contributions are welcome! As we prepare for next phase (Game Asset Textures and Text Rendering), we encourage developers to submit Pull Requests or open Issues for bug reports and feature suggestions.
 
-- Python 3.10
-- PyQt6
-
-### Installation
-
-1. Download the code:
-   ```bash
-   git clone https://github.com/DevGeniusCode/GenWND.git
-   cd GenWND
-   ```
-
-2. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Running the Software
-
-To run the software, simply execute the `main.py` file:
-```bash
-python src/main.py
+## ⚖️ Licensing
+This project is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. We require all contributors to engage collaboratively while adhering to the **Contributor Covenant** code of conduct.
 ```
-
-### Analyzing a WND File
-
-1. Open the WND file via the interface.
-2. The software will analyze the file and display the object tree.
-3. You can navigate between windows and view the properties of each window.
-
-### Error Handling
-
-In case of errors during the WND file parsing, **GenWND** uses an error-handling mechanism:
-- Errors at level 2 allow the user to skip the error.
-- If the error is critical, the loading process will stop.
-
-## Contributions
-
-If you would like to contribute, feel free to submit a Pull Request or open an Issue with suggestions or problems.
-
-## Licensing
-
-The project is licensed under the **Mozilla Public License 2.0** (MPL-2.0) and requires contributions in a collaborative manner while adhering to the **Contributor Covenant** code of conduct. 
-

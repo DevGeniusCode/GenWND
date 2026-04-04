@@ -2,7 +2,7 @@ import os
 import uuid
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTreeView, QLabel, QPushButton, QMenu
+    QWidget, QVBoxLayout, QHBoxLayout, QTreeView, QLabel, QPushButton, QMenu, QSizePolicy
 )
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice
@@ -218,7 +218,9 @@ class ObjectTree(QWidget):
         self.layout = QVBoxLayout(self)
 
         self.empty_label = QLabel("Select a file to display its Windows.", self)
+        self.empty_label.setObjectName("emptyStateLabel")  # <-- Added shared style class
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding) # <-- Fill background
         self.empty_label.setWordWrap(True)
 
         self.tree_view = QTreeView()

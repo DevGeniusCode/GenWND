@@ -174,6 +174,7 @@ class MainWindow(QMainWindow):
 
         # Status Bar
         self.status_bar = QStatusBar(self)
+        self.status_bar.setStyleSheet("QStatusBar { padding-left: 8px; }") # <-- Added Padding
         self.setStatusBar(self.status_bar)
         self.update_status_bar()
 
@@ -228,11 +229,23 @@ class MainWindow(QMainWindow):
 
     def load_styles(self):
         """Loads application stylesheet."""
+        base_style = ""
         try:
             with open("resources/styles.qss", "r") as style_file:
-                self.setStyleSheet(style_file.read())
+                base_style = style_file.read()
         except FileNotFoundError:
             self.log_manager.log("styles.qss not found in resources directory", level="WARNING")
+
+        # Inject shared Empty State styling programmatically
+        empty_state_style = """
+            QLabel#emptyStateLabel {
+                background-color: #2b2b2b;
+                color: #888888;
+                font-size: 14px;
+                font-style: italic;
+            }
+        """
+        self.setStyleSheet(base_style + empty_state_style)
 
     def handle_exception(self, exc_type, exc_value, exc_tb):
         """Global handler for uncaught exceptions."""

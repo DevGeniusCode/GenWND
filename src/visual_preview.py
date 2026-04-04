@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QToolBar, QGraphicsView, QGraphicsScene,
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QSlider,
-    QLabel, QHBoxLayout, QPushButton
+    QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy
 )
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF
@@ -497,7 +497,19 @@ class VisualPreview(QWidget):
 
         self.view = PreviewGraphicsView(self)
         self.view.setScene(self.scene)
-        self.layout.addWidget(self.view, stretch=1)
+
+        # Setup Empty State Label
+        self.empty_label = QLabel("Select a file to open the canvas.", self)
+        self.empty_label.setObjectName("emptyStateLabel")
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Create Stacked Layout to swap between View and Empty Label safely
+        self.view_stack = QStackedLayout()
+        self.view_stack.addWidget(self.empty_label) # Index 0 (Default)
+        self.view_stack.addWidget(self.view)        # Index 1
+
+        self.layout.addLayout(self.view_stack, stretch=1)
 
         # Inject the group bounding box overlay
         self.group_overlay = GroupResizeOverlay(self)
@@ -551,6 +563,7 @@ class VisualPreview(QWidget):
         self.scene.clear()
         self.items_map.clear()
         self.update_toolbar_state(0)
+        self.view_stack.setCurrentWidget(self.empty_label) # <-- Show empty state
         # Re-add the overlay because self.scene.clear() removed it
         self.group_overlay = GroupResizeOverlay(self)
         self.scene.addItem(self.group_overlay)
@@ -714,6 +727,8 @@ class VisualPreview(QWidget):
         self.clear()
         if not windows:
             return
+
+        self.view_stack.setCurrentWidget(self.view) # <-- Show the canvas
 
         res_w, res_h = 800, 600
         if 'SCREENRECT' in windows[0].properties:

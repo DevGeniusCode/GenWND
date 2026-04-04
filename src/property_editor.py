@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QTabWidget, QTextEdit, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QTabWidget, QTextEdit, QVBoxLayout, QWidget, QLabel, QHBoxLayout, QPushButton, QSizePolicy
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 import copy
@@ -27,9 +27,10 @@ class PropertyEditor(QWidget):
 
         # Create a label to display when there's no content or error
         self.empty_label = QLabel("Select an object to display its properties.", self)
-        self.empty_label.setObjectName("emptyLabel")  # Set the class name for QSS styling
+        self.empty_label.setObjectName("emptyStateLabel")  # <-- Replaced 'emptyLabel' with shared class
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.empty_label.setWordWrap(True)
-        self.empty_label.setStyleSheet(f"qproperty-alignment: {int(Qt.AlignmentFlag.AlignCenter)};")
 
         # Initially hide the tabs (when there's no content)
         self.tabs.setVisible(False)

@@ -358,6 +358,8 @@ class PreviewGraphicsView(QGraphicsView):
         self.show_grid = False
         self.grid_size = 20
         self._zoom_level = 100
+        self._is_widescreen = False
+
 
     def set_show_grid(self, show):
         self.show_grid = show
@@ -390,13 +392,26 @@ class PreviewGraphicsView(QGraphicsView):
         painter.setPen(pen)
         painter.drawLines(lines)
 
+    def toggle_widescreen(self, is_enabled):
+        """Toggles the 1.33x horizontal stretch without altering data coordinates."""
+        self._is_widescreen = is_enabled
+        self._apply_transform()
+
     def set_zoom(self, level):
-        """Safely apply scale transformations based on a percentage zoom level."""
+        """Updates zoom level and recalculates the final transform."""
         self._zoom_level = max(10, min(500, level))
+        self.zoom_changed.emit(self._zoom_level)
+        self._apply_transform()
+
+    def _apply_transform(self):
+        """Safely apply scale transformations combining zoom and widescreen stretch."""
         factor = self._zoom_level / 100.0
 
-        self.setTransform(self.transform().fromScale(factor, factor))
-        self.zoom_changed.emit(self._zoom_level)
+        # Apply 1.3333x horizontal stretch if widescreen mode is ON
+        scale_x = factor * (1.3333 if self._is_widescreen else 1.0)
+        scale_y = factor
+
+        self.setTransform(self.transform().fromScale(scale_x, scale_y))
 
     def wheelEvent(self, event):
         """Allows mouse-wheel zooming ONLY when Ctrl is pressed. Otherwise, pan."""
@@ -438,6 +453,64 @@ class PreviewGraphicsView(QGraphicsView):
 
             delattr(self, '_drag_start_geometries')
 
+    def keyPressEvent(self, event):
+        """Allows nudging selected items pixel-by-pixel using arrow keys."""
+        if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
+            selected_items = self.scene().selectedItems()
+            wnd_items = [i for i in selected_items if isinstance(i, WndGraphicsItem)]
+
+            if not wnd_items:
+                super().keyPressEvent(event)
+                return
+
+            dx, dy = 0, 0
+            if event.key() == Qt.Key.Key_Up:
+                dy = -1
+            elif event.key() == Qt.Key.Key_Down:
+                dy = 1
+            elif event.key() == Qt.Key.Key_Left:
+                dx = -1
+            elif event.key() == Qt.Key.Key_Right:
+                dx = 1
+
+            # Option: Hold Shift to jump 10 pixels instead of 1
+            if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                dx *= 10
+                dy *= 10
+
+            changes = []
+            preview_widget = self.parent()
+
+            # Prevent triggering individual signal updates for every single pixel move
+            preview_widget._is_syncing = True
+
+            for item in wnd_items:
+                old_ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+                old_br = (int(item.scenePos().x() + item.rect().width()),
+                          int(item.scenePos().y() + item.rect().height()))
+
+                new_x = item.scenePos().x() + dx
+                new_y = item.scenePos().y() + dy
+
+                # Tell Qt we are modifying the geometry
+                item.prepareGeometryChange()
+                item.setPos(new_x, new_y)
+
+                new_ul = (int(new_x), int(new_y))
+                new_br = (int(new_x + item.rect().width()), int(new_y + item.rect().height()))
+
+                preview_widget.handle_item_moved(item.window, new_ul, new_br)
+                changes.append((item.window_uuid, old_ul, old_br, new_ul, new_br))
+
+            preview_widget._is_syncing = False
+
+            # Emit as a single macro so the undo stack handles the nudge properly
+            if changes:
+                preview_widget.bulk_geometry_change_signal.emit("Nudge Items", changes)
+
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
 class VisualPreview(QWidget):
     """Main Canvas container combining the Toolbar, the View, and the Control Bar."""
@@ -524,6 +597,10 @@ class VisualPreview(QWidget):
         self.btn_grid.setCheckable(True)
         self.btn_grid.clicked.connect(self.view.set_show_grid)
 
+        self.btn_widescreen = QPushButton("Widescreen 16:9")
+        self.btn_widescreen.setCheckable(True)
+        self.btn_widescreen.toggled.connect(self.view.toggle_widescreen)
+
         self.btn_zoom_out = QPushButton("-")
         self.btn_zoom_out.setFixedWidth(30)
         self.btn_zoom_out.clicked.connect(lambda: self.view.set_zoom(self.view._zoom_level - 10))
@@ -545,6 +622,7 @@ class VisualPreview(QWidget):
         self.view.zoom_changed.connect(self._update_zoom_ui)
 
         self.bottom_layout.addWidget(self.btn_grid)
+        self.bottom_layout.addWidget(self.btn_widescreen)
         self.bottom_layout.addStretch()
         self.bottom_layout.addWidget(self.btn_zoom_out)
         self.bottom_layout.addWidget(self.zoom_slider)
@@ -554,6 +632,7 @@ class VisualPreview(QWidget):
         self.layout.addWidget(self.bottom_bar)
 
     def _update_zoom_ui(self, level):
+        """Updates the zoom slider and label when the zoom level changes."""
         self.zoom_slider.blockSignals(True)
         self.zoom_slider.setValue(level)
         self.zoom_slider.blockSignals(False)

@@ -158,3 +158,56 @@ QFrame#InnerSection {
     min-height: 10px;
     margin: 0;
 }
+
+/* =========================================
+   Tab Widget Fix (Dark Theme)
+   ========================================= */
+QTabWidget::pane {
+    border: 1px solid #333333;
+    background-color: #1e1e1e;
+}
+
+QTabBar::tab {
+    background-color: #2d2d2d;
+    color: #808080;
+    padding: 6px 12px;
+    border: 1px solid #333333;
+    border-bottom-color: #333333;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border-bottom-color: #1e1e1e;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: #3d3d3d;
+    color: #ffffff;
+}
+
+QTabWidget > QWidget {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+/* =========================================
+   Checked Buttons Fix (Alignment/Toggle Buttons)
+   ========================================= */
+QPushButton:checked, QToolButton:checked {
+    background-color: #4a4a4a;
+    color: #ffffff;
+    border: 1px solid #666666;
+}
+
+QRadioButton {
+    color: #d4d4d4;
+}
+
+QRadioButton:checked {
+    color: #ffffff;
+    font-weight: bold;
+}
+

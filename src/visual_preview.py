@@ -62,13 +62,6 @@ class WndGraphicsItem(QGraphicsRectItem):
     def mousePressEvent(self, event):
         """Detect if the user clicked a resize handle or is just dragging the item."""
         if self.isSelected():
-            # Capture starting geometry for Undo tracking
-            self._undo_start_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
-            self._undo_start_br = (
-                int(self.scenePos().x() + self.rect().width()),
-                int(self.scenePos().y() + self.rect().height())
-            )
-
             self.active_handle = self._get_handle_at(event.pos())
             if self.active_handle:
                 self.is_resizing = True
@@ -111,27 +104,7 @@ class WndGraphicsItem(QGraphicsRectItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Capture ending geometry and emit signals for bulk tracking."""
-        current_ul = (int(self.scenePos().x()), int(self.scenePos().y()))
-        current_br = (
-            int(self.scenePos().x() + self.rect().width()),
-            int(self.scenePos().y() + self.rect().height())
-        )
-
-        # Check if geometry actually changed during the drag/resize
-        if hasattr(self, '_undo_start_ul'):
-            if current_ul != self._undo_start_ul or current_br != self._undo_start_br:
-                self.preview_widget.item_drag_finished_signal.emit(
-                    self.window_uuid,
-                    self._undo_start_ul,
-                    self._undo_start_br,
-                    current_ul,
-                    current_br
-                )
-            # Cleanup
-            delattr(self, '_undo_start_ul')
-            delattr(self, '_undo_start_br')
-
+        """Clean up resize state."""
         self.is_resizing = False
         self.active_handle = None
         super().mouseReleaseEvent(event)
@@ -263,6 +236,34 @@ class PreviewGraphicsView(QGraphicsView):
             event.accept()
         else:
             super().wheelEvent(event)
+
+    def mousePressEvent(self, event):
+        """Snapshot geometry of all selected items before a drag or resize begins."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_geometries = {}
+            for item in self.scene().selectedItems():
+                if isinstance(item, WndGraphicsItem):
+                    ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+                    br = (int(item.scenePos().x() + item.rect().width()), int(item.scenePos().y() + item.rect().height()))
+                    self._drag_start_geometries[item] = (ul, br)
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Compare geometry changes and emit an undo macro if items were moved or resized."""
+        super().mouseReleaseEvent(event)
+        if event.button() == Qt.MouseButton.LeftButton and hasattr(self, '_drag_start_geometries'):
+            changes = []
+            for item, (old_ul, old_br) in self._drag_start_geometries.items():
+                if isinstance(item, WndGraphicsItem):
+                    new_ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+                    new_br = (int(item.scenePos().x() + item.rect().width()), int(item.scenePos().y() + item.rect().height()))
+                    if old_ul != new_ul or old_br != new_br:
+                        changes.append((item.window_uuid, old_ul, old_br, new_ul, new_br))
+
+            if changes:
+                self.parent().bulk_geometry_change_signal.emit("Move/Resize", changes)
+
+            delattr(self, '_drag_start_geometries')
 
 
 class VisualPreview(QWidget):

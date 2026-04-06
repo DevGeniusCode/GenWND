@@ -514,13 +514,10 @@ class PreviewGraphicsView(QGraphicsView):
 
 class VisualPreview(QWidget):
     """Main Canvas container combining the Toolbar, the View, and the Control Bar."""
-    item_selected_signal = pyqtSignal(str)
+    selection_changed_signal = pyqtSignal(list)  # Unified signal emitting UUID strings
     item_moved_signal = pyqtSignal(object, tuple, tuple)
     item_drag_finished_signal = pyqtSignal(str, tuple, tuple, tuple, tuple)
     bulk_geometry_change_signal = pyqtSignal(str, list)
-
-    multi_selection_signal = pyqtSignal()
-    selection_cleared_signal = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -668,12 +665,8 @@ class VisualPreview(QWidget):
             pass
 
         if not self._is_syncing:
-            if len(wnd_items) == 1:
-                self.item_selected_signal.emit(wnd_items[0].window_uuid)
-            elif len(wnd_items) > 1:
-                self.multi_selection_signal.emit()
-            elif len(wnd_items) == 0:
-                self.selection_cleared_signal.emit()
+            uuids = [item.window_uuid for item in wnd_items]
+            self.selection_changed_signal.emit(uuids)
 
     def update_toolbar_state(self, selected_count):
         is_enabled = selected_count >= 2
@@ -795,19 +788,18 @@ class VisualPreview(QWidget):
         if len(wnd_items) > 1 and not getattr(self.group_overlay, 'is_resizing', False):
             self.group_overlay.sync_bounds(wnd_items)
 
-    def select_item(self, uuid):
-        if uuid in self.items_map:
-            item = self.items_map[uuid]
-
-            # Prevent circular jumping bug: if it's already the only selected item, do nothing
-            if item.isSelected() and len(self.scene.selectedItems()) == 1:
-                return
-
-            self._is_syncing = True
-            self.scene.clearSelection()
-            item.setSelected(True)
-            self.view.ensureVisible(item)
-            self._is_syncing = False
+    def select_items(self, uuids):
+        """Programmatically select items passed down from the Object Tree."""
+        self._is_syncing = True
+        self.scene.clearSelection()
+        items_to_show = []
+        
+        for uuid in uuids:
+            if uuid in self.items_map:
+                item = self.items_map[uuid]
+                item.setSelected(True)
+                items_to_show.append(item)
+                
 
     def update_item_geometry_from_data(self, window):
         if not window or window.window_uuid not in self.items_map:

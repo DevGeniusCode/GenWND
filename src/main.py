@@ -187,34 +187,13 @@ class MainWindow(QMainWindow):
         # Panel Selection Signals
         self.file_tree.file_selected_signal.connect(self.select_file)
         self.file_tree.folder_selected_signal.connect(self.select_folder)
-        self.object_tree.object_selected_signal.connect(self.select_object)
+        self.object_tree.objects_selected_signal.connect(self.select_objects_from_tree)
 
         # Canvas <-> Data Sync Signals
         self.object_tree.visibility_changed_signal.connect(self.visual_preview.set_item_visibility)
-        self.visual_preview.item_selected_signal.connect(self.object_tree.select_item_by_uuid)
+        self.visual_preview.selection_changed_signal.connect(self.select_objects_from_canvas)
         self.visual_preview.item_moved_signal.connect(self.handle_canvas_item_moved)
         self.visual_preview.bulk_geometry_change_signal.connect(self.handle_bulk_geometry_change)
-
-        # Multi-Selection Safety Signals
-        self.visual_preview.multi_selection_signal.connect(self.handle_multi_selection)
-        self.visual_preview.selection_cleared_signal.connect(self.handle_selection_cleared)
-
-    def handle_multi_selection(self):
-        self.selected_object = None
-        self.property_editor.clear()
-        self.status_bar.showMessage("Multiple objects selected. Properties disabled.")
-        # Temporarily block signals to clear tree without triggering loops
-        self.object_tree.tree_view.blockSignals(True)
-        self.object_tree.tree_view.clearSelection()
-        self.object_tree.tree_view.blockSignals(False)
-
-    def handle_selection_cleared(self):
-        self.selected_object = None
-        self.property_editor.clear()
-        self.update_status_bar()
-        self.object_tree.tree_view.blockSignals(True)
-        self.object_tree.tree_view.clearSelection()
-        self.object_tree.tree_view.blockSignals(False)
 
     # --- UI ACTIONS ---
     def toggle_file_tree_visibility(self):
@@ -281,20 +260,40 @@ class MainWindow(QMainWindow):
         self.settings_widget.show()
 
     # --- SELECTION & SYNC LOGIC ---
-    def select_object(self, window_object):
-        """Handles selection of an object from the object tree."""
-        self.selected_object = window_object
-        self.update_status_bar()
-        self.load_object_property()
+    def select_objects_from_tree(self, window_objects):
+        """Triggered when the user changes selection in the Object Tree."""
+        if hasattr(self, 'visual_preview'):
+            uuids = [obj.window_uuid for obj in window_objects]
+            self.visual_preview.select_items(uuids)
+        self._update_selection_state(window_objects)
 
-        # Highlight object in the canvas
-        if hasattr(self, 'visual_preview') and window_object:
-            self.visual_preview.select_item(window_object.window_uuid)
+    def select_objects_from_canvas(self, uuids):
+        """Triggered when the user changes selection in the visual Canvas."""
+        window_objects = []
+        if self.parser:
+            for uuid in uuids:
+                obj = self.object_tree.model._find_window_by_uuid(self.parser.get_windows(), uuid)
+                if obj:
+                    window_objects.append(obj)
 
-        if self.selected_object:
-            self.log_manager.log(
-                f"Object selected: {window_object.properties.get('WINDOWTYPE')} - {window_object.properties.get('NAME', 'Unnamed')}",
-                level="INFO")
+        self.object_tree.select_items_by_uuids(uuids)
+        self._update_selection_state(window_objects)
+
+    def _update_selection_state(self, window_objects):
+        """Centralized handler to load properties and update the status bar."""
+        if len(window_objects) == 1:
+            self.selected_object = window_objects[0]
+            self.update_status_bar()
+            self.load_object_property()
+            self.log_manager.log(f"Object selected: {self.selected_object.properties.get('NAME', 'Unnamed')}", level="INFO")
+        elif len(window_objects) > 1:
+            self.selected_object = None
+            self.property_editor.clear()
+            self.status_bar.showMessage(f"{len(window_objects)} objects selected. Properties disabled.")
+        else:
+            self.selected_object = None
+            self.property_editor.clear()
+            self.update_status_bar()
 
     def handle_canvas_item_moved(self, window, ul, br):
         """Triggered when an item is dynamically dragged/resized on the visual preview."""

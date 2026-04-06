@@ -5,10 +5,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeView, QLabel, QPushButton, QMenu, QSizePolicy
 )
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice, QItemSelectionModel, QTimer
 
 from src.window.window_properties import ObjectFactory
-from commands import CommandAddObject, CommandDeleteObject
+from commands import CommandAddObject, CommandDeleteObject, CommandMoveObject
 
 class ObjectTreeModel(QStandardItemModel):
     """Custom model handling hierarchical WND objects and drag/drop reordering."""
@@ -25,21 +25,22 @@ class ObjectTreeModel(QStandardItemModel):
         return ['application/x-window-object']
 
     def mimeData(self, indexes):
-        """Serializes the dragged window's UUID into MIME data."""
+        """Serializes all selected dragged windows' UUIDs into MIME data."""
         if not indexes:
             return None
 
-        item = self.itemFromIndex(indexes[0])
-        selected_window = item.data()
-
-        self.main_window.log_manager.log(f"startDrag - selected item: {selected_window.properties.get('NAME')}")
+        uuids = []
+        for idx in indexes:
+            if idx.column() == 0:
+                item = self.itemFromIndex(idx)
+                uuids.append(item.data().window_uuid)
 
         mime_data = QMimeData()
         data = QByteArray()
         stream = QDataStream(data, QDataStream.OpenModeFlag.WriteOnly)
 
-        encoded_uuid = selected_window.window_uuid.encode('utf-8')
-        stream.writeBytes(encoded_uuid)
+        uuid_str = ",".join(uuids)
+        stream.writeBytes(uuid_str.encode('utf-8'))
         mime_data.setData('application/x-window-object', data)
 
         return mime_data
@@ -56,7 +57,9 @@ class ObjectTreeModel(QStandardItemModel):
             return False
 
         stream = QDataStream(data.data('application/x-window-object'), QIODevice.OpenModeFlag.ReadOnly)
-        source_window_uuid = stream.readBytes().decode('utf-8')
+        uuid_str = stream.readBytes().decode('utf-8')
+        source_uuids = uuid_str.split(',') if uuid_str else []
+        if not source_uuids: return False
 
         # Determine target drop window
         drop_window = None
@@ -71,52 +74,32 @@ class ObjectTreeModel(QStandardItemModel):
                 self.main_window.log_manager.log("dropEvent - target not USER, adding as sibling", level="INFO")
                 drop_window = self._find_window_parent(self.parser_windows, drop_window.window_uuid)
 
-        if drop_window:
-            self.main_window.log_manager.log(f"dropEvent - dropping into parent: {drop_window.properties.get('NAME')}")
-        else:
-            self.main_window.log_manager.log("dropEvent - dropping into root")
+        target_parent_uuid = drop_window.window_uuid if drop_window else None
+        target_list = drop_window.children if drop_window and hasattr(drop_window, 'children') else self.parser_windows
+        if drop_window and not hasattr(drop_window, 'children'): target_list = []
 
-        self.reorder_windows(source_window_uuid, drop_window, row)
+        insert_row = row if row >= 0 else len(target_list)
 
-        # Trigger application state update and full tree refresh
-        self.main_window.update_modified_state(True)
-        self.clear()
-        self.main_window.object_tree._populate_tree(self.parser_windows, self)
+        self.main_window.undo_stack.beginMacro("Move Multiple Objects")
+        for uuid in source_uuids:
+            source_window = self._find_window_by_uuid(self.parser_windows, uuid)
+            if not source_window: continue
+
+            # Adjust index dynamically if moving within the same parent from above target
+            source_parent = self._find_window_parent(self.parser_windows, uuid)
+            source_list = source_parent.children if source_parent and hasattr(source_parent, 'children') else self.parser_windows
+            current_insert = insert_row
+
+            if source_list is target_list and source_list.index(source_window) < insert_row:
+                current_insert -= 1
+                insert_row -= 1
+
+            cmd = CommandMoveObject(self.main_window, uuid, target_parent_uuid, current_insert)
+            self.main_window.undo_stack.push(cmd)
+            insert_row += 1
+
+        self.main_window.undo_stack.endMacro()
         return True
-
-    def reorder_windows(self, source_uuid, target_parent, target_row):
-        """Moves a window object from its old location to the new parent/index."""
-        source_window = self._find_window_by_uuid(self.parser_windows, source_uuid)
-        if not source_window:
-            self.main_window.log_manager.log(f"reorder_windows - uuid {source_uuid} not found", level="WARNING")
-            return
-
-        # 1. Remove from old parent
-        old_siblings = self._find_window_parent_children(self.parser_windows, source_uuid)
-        if old_siblings and source_window in old_siblings:
-            old_siblings.remove(source_window)
-
-            # Clean up empty children arrays on old parent
-            if not old_siblings:
-                old_parent = self._find_window_parent(self.parser_windows, source_uuid)
-                if old_parent and hasattr(old_parent, 'children'):
-                    del old_parent.children
-
-        # 2. Add to new target
-        if target_parent:
-            if not hasattr(target_parent, 'children'):
-                target_parent.children = []
-
-            # Prevent index out of bounds on drops at the end of the list
-            if target_row < 0 or target_row > len(target_parent.children):
-                target_row = len(target_parent.children)
-
-            target_parent.children.insert(target_row, source_window)
-        else:
-            # Root level insertion
-            if target_row < 0 or target_row > len(self.parser_windows):
-                target_row = len(self.parser_windows)
-            self.parser_windows.insert(target_row, source_window)
 
     def _find_window_by_uuid(self, windows, window_uuid):
         """Recursively search for a window object by UUID."""
@@ -179,19 +162,21 @@ class ObjectTreeModel(QStandardItemModel):
             if drop_window:
                 data = event.mimeData().data('application/x-window-object')
                 stream = QDataStream(data, QIODevice.OpenModeFlag.ReadOnly)
-                source_uuid = stream.readBytes().decode('utf-8')
-                source_window = self._find_window_by_uuid(self.parser_windows, source_uuid)
+                uuid_str = stream.readBytes().decode('utf-8')
+                source_uuids = uuid_str.split(',') if uuid_str else []
 
                 # Prevent dragging containers into themselves
-                if source_window and source_window.properties.get('WINDOWTYPE') == 'USER':
-                    if self.is_ancestor(source_window, drop_window) or self.is_ancestor(drop_window, source_window):
-                        return False
+                for source_uuid in source_uuids:
+                    source_window = self._find_window_by_uuid(self.parser_windows, source_uuid)
+                    if source_window and source_window.properties.get('WINDOWTYPE') == 'USER':
+                        if self.is_ancestor(source_window, drop_window) or self.is_ancestor(drop_window, source_window):
+                            return False
         return True
 
 
 class ObjectTree(QWidget):
     """The visual hierarchical representation of WND elements."""
-    object_selected_signal = pyqtSignal(object)
+    objects_selected_signal = pyqtSignal(list)  # Emits list of selected window objects
     visibility_changed_signal = pyqtSignal(str, bool)
 
     def __init__(self, parent=None, main_window=None):
@@ -202,6 +187,7 @@ class ObjectTree(QWidget):
         self.model.setHorizontalHeaderLabels(["Object Tree"])
 
         self._is_updating_checks = False  # Guard for checkbox recursion
+        self._is_syncing = False          # Guard for selection loop recursion
 
         self._setup_ui()
 
@@ -230,6 +216,7 @@ class ObjectTree(QWidget):
         self.tree_view.setAcceptDrops(True)
         self.tree_view.setDropIndicatorShown(True)
         self.tree_view.setDragDropMode(QTreeView.DragDropMode.InternalMove)
+        self.tree_view.setSelectionMode(QTreeView.SelectionMode.ExtendedSelection)
         self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
         self.save_button = QPushButton("Save to file")
@@ -249,24 +236,27 @@ class ObjectTree(QWidget):
         self.layout.addLayout(self.tree_layout)
         self.layout.setStretch(0, 1)
 
-    def select_item_by_uuid(self, uuid):
-        """Recursively search for the item by UUID and visually select it in the tree."""
+    def select_items_by_uuids(self, uuids):
+        """Recursively searches for items by UUID and visually selects them in the tree."""
+        self._is_syncing = True
+        selection_model = self.tree_view.selectionModel()
+        selection_model.clearSelection()
+
+        if not uuids:
+            self._is_syncing = False
+            return
 
         def search_item(parent_item):
             for row in range(parent_item.rowCount()):
                 child = parent_item.child(row)
                 window = child.data()
-                if window and getattr(window, 'window_uuid', None) == uuid:
-                    return child
-                result = search_item(child)
-                if result:
-                    return result
-            return None
+                if window and getattr(window, 'window_uuid', None) in uuids:
+                    selection_model.select(child.index(), QItemSelectionModel.SelectionFlag.Select)
+                    self.tree_view.scrollTo(child.index())
+                search_item(child)
 
-        item = search_item(self.model.invisibleRootItem())
-        if item:
-            self.tree_view.setCurrentIndex(item.index())
-            self.tree_view.scrollTo(item.index())
+        search_item(self.model.invisibleRootItem())
+        self._is_syncing = False
 
     def load_objects(self, windows):
         """Load the parsed WND data into the tree view."""
@@ -282,7 +272,8 @@ class ObjectTree(QWidget):
         # Build tree without triggering check signals
         self._is_updating_checks = True
         self.model.clear()
-        self._populate_tree(windows, self.model)
+        self.model.setHorizontalHeaderLabels(["Object Tree"])
+        self._populate_tree(windows, self.model.invisibleRootItem())
         self._is_updating_checks = False
 
     def _populate_tree(self, windows, parent_item):
@@ -294,7 +285,8 @@ class ObjectTree(QWidget):
 
             # Setup visibility checkboxes
             item.setCheckable(True)
-            item.setCheckState(Qt.CheckState.Checked)
+            is_hidden = getattr(window, '_is_hidden_in_editor', False)
+            item.setCheckState(Qt.CheckState.Unchecked if is_hidden else Qt.CheckState.Checked)
 
             parent_item.appendRow(item)
             if hasattr(window, 'children'):
@@ -314,6 +306,7 @@ class ObjectTree(QWidget):
         # Update current item canvas visibility
         window = item.data()
         if window and hasattr(window, 'window_uuid'):
+            window._is_hidden_in_editor = not is_checked
             self.visibility_changed_signal.emit(window.window_uuid, is_checked)
 
         # Update children recursively
@@ -329,16 +322,23 @@ class ObjectTree(QWidget):
             window = child.data()
             if window and hasattr(window, 'window_uuid'):
                 is_checked = check_state == Qt.CheckState.Checked
+                window._is_hidden_in_editor = not is_checked
                 self.visibility_changed_signal.emit(window.window_uuid, is_checked)
 
             self._update_children_checks(child, check_state)
 
     def on_item_selected(self, selected, deselected):
-        """Emit active object to the property editor when clicked in the tree."""
+        """Emit active objects to the property editor and canvas when clicked in the tree."""
+        if self._is_syncing:
+            return
+            
         selected_indexes = self.tree_view.selectedIndexes()
-        if selected_indexes:
-            selected_item = self.model.itemFromIndex(selected_indexes[0])
-            self.object_selected_signal.emit(selected_item.data())
+        selected_objects = []
+        for idx in selected_indexes:
+            if idx.column() == 0:  # Prevent duplicate signals across columns
+                item = self.model.itemFromIndex(idx)
+                selected_objects.append(item.data())
+        self.objects_selected_signal.emit(selected_objects)
 
     def display_error(self, error_message):
         """Displays parsing errors directly inside the tree view."""
@@ -408,16 +408,20 @@ class ObjectTree(QWidget):
         for object_type in factory.control_classes:
             add_menu.addAction(object_type)
 
-        selected_index = self.tree_view.indexAt(position)
-        selected_item = self.model.itemFromIndex(selected_index) if selected_index.isValid() else None
+        selected_indexes = self.tree_view.selectionModel().selectedIndexes()
+        selected_items = [self.model.itemFromIndex(idx) for idx in selected_indexes if idx.column() == 0]
+
+        # Only allow adding if exactly 1 or 0 items are selected
+        if len(selected_items) > 1:
+            add_menu.setEnabled(False)
 
         action = menu.exec(self.tree_view.viewport().mapToGlobal(position))
 
         if action == delete_action:
-            if selected_item:
-                self.delete_selected_item(selected_item)
+            if selected_items:
+                self.delete_selected_items(selected_items)
         elif action and action.parent() == add_menu:
-            self.add_new_control(selected_item, action.text())
+            self.add_new_control(selected_items[0] if selected_items else None, action.text())
 
     def add_new_control(self, parent_item, new_object_type):
         """Creates a new WND element and queues an undoable command."""
@@ -452,8 +456,16 @@ class ObjectTree(QWidget):
         cmd = CommandAddObject(self.main_window, new_object, parent_uuid, insert_index)
         self.main_window.undo_stack.push(cmd)
 
+    def delete_selected_items(self, items):
+        """Queues the removal of all active elements as a single undoable macro."""
+        if not items:
+            return
+        self.main_window.undo_stack.beginMacro("Delete Multiple Objects")
+        for item in items:
+            self._queue_delete_command(item)
+        self.main_window.undo_stack.endMacro()
 
-    def delete_selected_item(self, item):
+    def _queue_delete_command(self, item):
         """Queues the removal of the active element as an undoable command."""
         selected_window = item.data()
         if not selected_window:
@@ -472,11 +484,52 @@ class ObjectTree(QWidget):
         cmd = CommandDeleteObject(self.main_window, selected_window, parent_uuid, insert_index)
         self.main_window.undo_stack.push(cmd)
 
+    def _get_tree_state(self):
+        """Captures scroll, expansion, and selection state to persist across rebuilds."""
+        state = {'scroll': self.tree_view.verticalScrollBar().value(), 'expanded': set(), 'selected': set()}
+
+        def traverse(parent_index):
+            for row in range(self.model.rowCount(parent_index)):
+                idx = self.model.index(row, 0, parent_index)
+                item = self.model.itemFromIndex(idx)
+                if self.tree_view.isExpanded(idx) and item and item.data():
+                    state['expanded'].add(item.data().window_uuid)
+                traverse(idx)
+        traverse(self.tree_view.rootIndex())
+
+        for idx in self.tree_view.selectionModel().selectedIndexes():
+            if idx.column() == 0:
+                item = self.model.itemFromIndex(idx)
+                if item and item.data(): state['selected'].add(item.data().window_uuid)
+        return state
+
+    def _restore_tree_state(self, state):
+        """Restores tree state after a full structural refresh."""
+        def traverse(parent_index):
+            for row in range(self.model.rowCount(parent_index)):
+                idx = self.model.index(row, 0, parent_index)
+                item = self.model.itemFromIndex(idx)
+                if item and item.data() and item.data().window_uuid in state['expanded']:
+                    self.tree_view.setExpanded(idx, True)
+                traverse(idx)
+
+        traverse(self.tree_view.rootIndex())
+        self.tree_view.verticalScrollBar().setValue(state['scroll'])
+        self.select_items_by_uuids(list(state['selected']))
+
     def _refresh_tree_state(self):
-        """Triggers a complete model refresh and signals modification to the main window."""
+        """Debounced request for a complete tree rebuild to avoid flickering during macros."""
+        if getattr(self, '_refresh_pending', False): return
+        self._refresh_pending = True
+        QTimer.singleShot(0, self._do_refresh_tree_state)
+
+    def _do_refresh_tree_state(self):
+        self._refresh_pending = False
+        state = self._get_tree_state()
         self.main_window.update_modified_state(True)
         self.model.clear()
-
+        self.model.setHorizontalHeaderLabels(["Object Tree"])
         self._is_updating_checks = True
-        self._populate_tree(self.model.parser_windows, self.model)
+        self._populate_tree(self.model.parser_windows, self.model.invisibleRootItem())
         self._is_updating_checks = False
+        self._restore_tree_state(state)

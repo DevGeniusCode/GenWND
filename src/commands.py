@@ -75,6 +75,61 @@ class CommandDeleteObject(QUndoCommand):
         self.main_window.handle_object_added(self.target_object)
 
 
+class CommandMoveObject(QUndoCommand):
+    def __init__(self, main_window, window_uuid, target_parent_uuid, target_row, description="Move Object"):
+        super().__init__(description)
+        self.main_window = main_window
+        self.window_uuid = window_uuid
+        self.target_parent_uuid = target_parent_uuid
+        self.target_row = target_row
+
+        self.old_parent_uuid = None
+        self.old_row = -1
+        self.first_run = True
+
+    def redo(self):
+        windows = self.main_window.parser.get_windows()
+        tree_model = self.main_window.object_tree.model
+        window = tree_model._find_window_by_uuid(windows, self.window_uuid)
+        if not window: return
+
+        if self.first_run:
+            old_parent = tree_model._find_window_parent(windows, self.window_uuid)
+            self.old_parent_uuid = old_parent.window_uuid if old_parent else None
+            old_list = getattr(old_parent, 'children', windows) if old_parent else windows
+            self.old_row = old_list.index(window)
+            self.first_run = False
+
+        # Remove from old location
+        old_parent = tree_model._find_window_by_uuid(windows, self.old_parent_uuid) if self.old_parent_uuid else None
+        old_list = getattr(old_parent, 'children', windows) if old_parent else windows
+        old_list.remove(window)
+
+        # Insert into new location
+        new_parent = tree_model._find_window_by_uuid(windows, self.target_parent_uuid) if self.target_parent_uuid else None
+        if new_parent and not hasattr(new_parent, 'children'): new_parent.children = []
+        new_list = getattr(new_parent, 'children', windows) if new_parent else windows
+        new_list.insert(min(self.target_row, len(new_list)), window)
+
+        self.main_window.object_tree._refresh_tree_state()
+
+    def undo(self):
+        windows = self.main_window.parser.get_windows()
+        tree_model = self.main_window.object_tree.model
+        window = tree_model._find_window_by_uuid(windows, self.window_uuid)
+        if not window: return
+
+        # Reverse operations exactly
+        new_parent = tree_model._find_window_by_uuid(windows, self.target_parent_uuid) if self.target_parent_uuid else None
+        getattr(new_parent, 'children', windows).remove(window) if new_parent else windows.remove(window)
+        old_parent = tree_model._find_window_by_uuid(windows, self.old_parent_uuid) if self.old_parent_uuid else None
+        if old_parent and not hasattr(old_parent, 'children'): old_parent.children = []
+        old_list = getattr(old_parent, 'children', windows) if old_parent else windows
+        old_list.insert(self.old_row, window)
+
+        self.main_window.object_tree._refresh_tree_state()
+
+
 class CommandChangeGeometry(QUndoCommand):
     """Command to change the position/size of an object with rapid-input merging."""
 

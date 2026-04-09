@@ -293,7 +293,8 @@ class UserControl(Window):
         output.append(f'TOOLTIPCALLBACK = "{self.properties["TOOLTIPCALLBACK"]}";')
         output.append(f'DRAWCALLBACK = "{self.properties["DRAWCALLBACK"]}";')
         output.append(self._format_font())
-        output.append(f'HEADERTEMPLATE = "{self.properties["HEADERTEMPLATE"]}";')
+        if self.properties['HEADERTEMPLATE']:
+            output.append(f'HEADERTEMPLATE = "{self.properties["HEADERTEMPLATE"]}";')
 
         if self.properties['TOOLTIPTEXT']:
             output.append(f'TOOLTIPTEXT = "{self.properties["TOOLTIPTEXT"]}";')

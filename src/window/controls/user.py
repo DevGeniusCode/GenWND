@@ -86,7 +86,10 @@ class UserControl(Window):
          # Font name must be one of the valid properties
         valid_fonts = ["Times New Roman", "Arial", "Courier New", "Placard MT Condensed", "Generals", "Courier"]
         if value["name"] not in valid_fonts:
-            raise InvalidValuesError(f"Invalid font name: {value['name']}. Valid properties: {valid_fonts}")
+            ErrorHandler.raise_error(self.file_name, 0, '',
+                                     f"Window name: {self.properties.get('NAME', 'Unknown')}:\n"
+                                     f"Invalid font name: {value['name']}. Valid properties: {valid_fonts}",
+                                      error_level=3)
         # Font size must be between 8 and 72
         if not (8 <= value["size"] <= 72):
             raise InvalidValuesError("Font size must be between 8 and 72.")
@@ -122,7 +125,9 @@ class UserControl(Window):
 
         # Ensure the rectangle size is at least 1x1 pixel
         if not (bottom_right[0] > upper_left[0] and bottom_right[1] > upper_left[1]):
-            raise InvalidValuesError("Rectangle size must be at least 1x1 pixel.")
+            ErrorHandler.raise_error(self.file_name, 0, '',
+                                     f"Window name: {self.properties.get('NAME', 'Unknown')}:\n"
+                                     f"Rectangle size must be at least 1x1 pixel.", error_level=1)
 
         # If all validations pass, store the value
         self.properties['SCREENRECT'] = value

@@ -21,7 +21,7 @@ except ImportError as e:
 # =====================================================================
 # CLI ERROR HANDLER PATCH (Monkey Patching)
 # =====================================================================
-def cli_raise_error(file_path, line_number, line_content, error_message, error_level=1):
+def cli_raise_error(file_path, line_number, line_content, error_message, error_level=2):
     """
     Replaces the original graphical error handler for CLI usage.
     Instead of popping up a Qt dialog, it prints the error to the terminal
@@ -34,7 +34,7 @@ def cli_raise_error(file_path, line_number, line_content, error_message, error_l
     if error_level == 1:
         # Critical Error (Level 1) - Print in red and abort execution
         print(f"\n\033[91m[CRITICAL ERROR]\033[0m {error_details}")
-        raise ValueError(error_details)
+        return
 
     elif error_level == 2:
         # Warning (Level 2) - Print in yellow and continue (simulates "Ignore")
@@ -64,7 +64,7 @@ def format_wnd_file(input_path: str, output_path: str = None) -> None:
     if output_path is None:
         output_path = input_path
 
-    print(f"[*] Parsing and formatting '{os.path.basename(input_path)}'...")
+    # print(f"[*] Parsing and formatting '{os.path.basename(input_path)}'...")
 
     parser = WndParser()
 
@@ -76,7 +76,7 @@ def format_wnd_file(input_path: str, output_path: str = None) -> None:
             f.write(formatted_text)
             f.write("\n")
 
-        print(f"[+] Success! Formatted file saved.")
+        # print(f"[+] Success! Formatted file saved.")
 
     except Exception as e:
         print(f"\n[!] Failed to format '{os.path.basename(input_path)}'.")

@@ -449,6 +449,7 @@ class MainWindow(QMainWindow):
 
             self.object_tree.load_objects(windows)
             self.visual_preview.load_hierarchy(windows)
+            self.undo_stack.clear()
 
             self.log_manager.log(f"Loaded objects from file {file_path}", level="INFO")
             self.update_modified_state(False)

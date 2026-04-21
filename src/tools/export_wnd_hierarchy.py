@@ -1,5 +1,15 @@
 import os
 # Import your real parser (ensure the path matches your project structure)
+import os
+import sys
+
+# Add the project root to Python's path dynamically
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, project_root)
+
+src_folder = os.path.join(project_root, 'src')
+sys.path.insert(0, src_folder)
+
 from src.window.wnd_parser import WndParser
 
 

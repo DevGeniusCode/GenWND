@@ -1,6 +1,8 @@
+import os
+
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QGroupBox, QLabel, QLineEdit, QSpinBox,
-    QTabWidget, QWidget, QVBoxLayout, QGridLayout, QHBoxLayout, QPushButton
+    QTabWidget, QWidget, QVBoxLayout, QGridLayout, QHBoxLayout, QPushButton, QMessageBox
 )
 from PyQt6.QtGui import QColor
 
@@ -358,6 +360,32 @@ class GeneralForm(QWidget):
 
         if not hasattr(self.main_window, 'selected_object') or not self.main_window.selected_object:
             return
+
+        # Enforce Suffix Length and Uniqueness
+        if prop_key == 'NAME':
+            current_file = os.path.basename(self.main_window.selected_file) if self.main_window.selected_file else ""
+            full_simulated_name = f"{current_file}:{new_value}"
+
+            # Constraint 1: Overall length < 64 chars
+            if len(full_simulated_name) >= 64:
+                QMessageBox.warning(self, "Invalid Name", f"The overall name length (including prefix '{current_file}:') must be under 64 characters.")
+                self.name_entry.setText(self.general_data.get('NAME', ''))  # Revert
+                return
+
+            # Constraint 2: Suffix uniqueness
+            def is_unique(windows, target_suffix, current_uuid):
+                for w in windows:
+                    if w.properties.get('NAME') == target_suffix and w.window_uuid != current_uuid:
+                        return False
+                    if hasattr(w, 'children') and not is_unique(w.children, target_suffix, current_uuid):
+                        return False
+                return True
+
+            if self.main_window.parser:
+                if not is_unique(self.main_window.parser.get_windows(), new_value, self.main_window.selected_object.window_uuid):
+                    QMessageBox.warning(self, "Invalid Name", f"The element name '{new_value}' is already in use.")
+                    self.name_entry.setText(self.general_data.get('NAME', ''))  # Revert
+                    return
 
         old_value = self.general_data.get(prop_key)
         if new_value != old_value:

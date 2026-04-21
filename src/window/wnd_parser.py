@@ -40,6 +40,15 @@ class WndParser:
 
         return "\n".join(lines)
 
+    def enforce_file_names(self, correct_filename):
+        """Recursively repairs all windows to ensure their prefix matches the parent file."""
+        def _update(windows):
+            for w in windows:
+                w.file_name = correct_filename
+                if hasattr(w, 'children') and w.children:
+                    _update(w.children)
+        _update(self.windows)
+
     def _repr_window(self, window, lines, indent_level):
         """
         Recursively generates the string representation for a window and its children.

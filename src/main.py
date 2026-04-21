@@ -479,6 +479,8 @@ class MainWindow(QMainWindow):
         """Saves current data to the selected file using the parser's representation."""
         if self.selected_file and self.parser:
             try:
+                self.parser.enforce_file_names(os.path.basename(self.selected_file))
+
                 with open(self.selected_file, 'w') as file:
                     file.write(str(self.parser))
                 self.update_modified_state(False)
@@ -496,6 +498,7 @@ class MainWindow(QMainWindow):
             file, _ = QFileDialog.getSaveFileName(self, "Save As", "", "WND Files (*.wnd);;All Files (*)")
             if file:
                 try:
+                    self.parser.enforce_file_names(os.path.basename(self.selected_file))
                     with open(file, 'w') as f:
                         f.write(str(self.parser))
                     self.selected_file = file

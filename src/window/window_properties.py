@@ -386,6 +386,24 @@ def parse_window_properties(lines_iter, window_uuid, file_name):
         new_object._set_TEXTCOLOR(text_color)
         new_object._set_textures(textures)
 
+        # --- Default/migration: ensure SCROLLIFATEND exists for SCROLLLISTBOX ---
+        if window_type == "SCROLLLISTBOX":
+            if attributes is None:
+                attributes = {}
+
+            listbox = attributes.get("LISTBOXDATA")
+            if listbox is None:
+                listbox = []
+                attributes["LISTBOXDATA"] = listbox
+
+            # LISTBOXDATA is a list of dicts like [{'AUTOSCROLL': 0}, ...]
+            has_scrollifatend = any(
+                isinstance(d, dict) and "SCROLLIFATEND" in d
+                for d in listbox
+            )
+            if not has_scrollifatend:
+                listbox.append({"SCROLLIFATEND": 0})
+
         return new_object
     except ValueError as e:
         ErrorHandler.raise_error(lines_iter.file_path, -1, f"Window block that start in {line_start}", e, error_level=1)

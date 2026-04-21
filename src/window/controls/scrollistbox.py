@@ -14,11 +14,17 @@ class ScrollListBoxControl(UserControl):
             self.properties['HEADERTEMPLATE'] = 'LabelRegular'
             self.properties['attributes'] = {
                 'LISTBOXDATA': [
-                    {'LENGTH': 100}, {'AUTOSCROLL': 0},
-                    {'AUTOPURGE': 0}, {'SCROLLBAR': 1},
-                    {'MULTISELECT': 0}, {'COLUMNS': 2},
-                    {'COLUMNSWIDTH': 30}, {'COLUMNSWIDTH': 20},
-                    {'FORCESELECT': 1}]
+                    {'LENGTH': 100},
+                    {'AUTOSCROLL': 0},
+                    {'SCROLLIFATEND': 0},
+                    {'AUTOPURGE': 0},
+                    {'SCROLLBAR': 1},
+                    {'MULTISELECT': 0},
+                    {'COLUMNS': 2},
+                    {'COLUMNSWIDTH': 30},
+                    {'COLUMNSWIDTH': 20},
+                    {'FORCESELECT': 1},
+                ]
             }
             self.properties['textures'] = {
                 'ENABLEDDRAWDATA': [

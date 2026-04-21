@@ -73,7 +73,7 @@ class ControlForm(QWidget):
 
     def create_scrolllistbox_attributes(self, properties):
         listbox_data = normalize_boolean_values(properties['attributes']['LISTBOXDATA'],
-                                                ['AUTOSCROLL', 'AUTOPURGE', 'SCROLLBAR', 'MULTISELECT', 'FORCESELECT'])
+                                                ['AUTOSCROLL', 'SCROLLIFATEND', 'AUTOPURGE', 'SCROLLBAR', 'MULTISELECT', 'FORCESELECT'])
 
         self.create_attributes_for_control(listbox_data)
         texture_keys = [

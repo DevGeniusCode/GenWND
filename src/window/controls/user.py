@@ -28,8 +28,8 @@ class UserControl(Window):
                 'BOTTOMRIGHT': [200, 100],
                 'CREATIONRESOLUTION': [800, 600]
             }
-            self.properties['STATUS'] = 'ENABLED'
-            self.properties['STYLE'] = 'USER'
+            self.properties['STATUS'] = ['ENABLED']
+            self.properties['STYLE'] = ['USER']
             self.properties['SYSTEMCALLBACK'] = '[None]'
             self.properties['INPUTCALLBACK'] = '[None]'
             self.properties['TOOLTIPCALLBACK'] = '[None]'

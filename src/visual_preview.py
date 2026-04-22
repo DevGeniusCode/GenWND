@@ -221,6 +221,8 @@ class WndGraphicsItem(QGraphicsRectItem):
         self._drag_origin_pos = None
         self._axis_lock = None  # 'x' => horizontal-only, 'y' => vertical-only
 
+        self.name_label = None  # QGraphicsTextItem assigned by renderer
+
     def boundingRect(self):
         """Expand the bounding rectangle to encompass the resize handles to prevent graphical ghosting."""
         margin = (self.HANDLE_SIZE / 2) + self.pen().widthF()
@@ -616,6 +618,11 @@ class VisualPreview(QWidget):
         self.btn_widescreen.setCheckable(True)
         self.btn_widescreen.toggled.connect(self.view.toggle_widescreen)
 
+        self.btn_labels = QPushButton("Toggle Labels")
+        self.btn_labels.setCheckable(True)
+        self.btn_labels.setChecked(True)
+        self.btn_labels.toggled.connect(self._on_labels_toggled)
+
         self.btn_zoom_out = QPushButton("-")
         self.btn_zoom_out.setFixedWidth(30)
         self.btn_zoom_out.clicked.connect(lambda: self.view.set_zoom(self.view._zoom_level - 10))
@@ -638,6 +645,7 @@ class VisualPreview(QWidget):
 
         self.bottom_layout.addWidget(self.btn_grid)
         self.bottom_layout.addWidget(self.btn_widescreen)
+        self.bottom_layout.addWidget(self.btn_labels)
         self.bottom_layout.addStretch()
         self.bottom_layout.addWidget(self.btn_zoom_out)
         self.bottom_layout.addWidget(self.zoom_slider)
@@ -939,6 +947,11 @@ class VisualPreview(QWidget):
         self.scene.addItem(bg_rect)
         self.scene.setSceneRect(-100, -100, res_w + 200, res_h + 200)
 
+        current_show = getattr(self.window(), "show_labels", True)
+        self.btn_labels.blockSignals(True)
+        self.btn_labels.setChecked(current_show)
+        self.btn_labels.blockSignals(False)
+        self.set_show_labels(current_show)
         self._render_windows(windows, depth=1)
 
     def set_item_visibility(self, uuid, is_visible):
@@ -985,6 +998,9 @@ class VisualPreview(QWidget):
         label.setPos(2, 2)
         label.setDefaultTextColor(QColor(255, 255, 255))
         label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
+        rect_item.name_label = label
+        show_labels = getattr(self.window(), "show_labels", True)
+        label.setVisible(show_labels)
 
         self.scene.addItem(rect_item)
 
@@ -1025,6 +1041,9 @@ class VisualPreview(QWidget):
                     label.setDefaultTextColor(QColor(255, 255, 255))
                     label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
                     self.scene.addItem(rect_item)
+                    rect_item.name_label = label
+                    show_labels = getattr(self.window(), "show_labels", True)
+                    label.setVisible(show_labels)
 
             if hasattr(window, 'children') and window.children:
                 self._render_windows(window.children, depth + 1)
@@ -1064,3 +1083,18 @@ class VisualPreview(QWidget):
             self.bulk_geometry_change_signal.emit("Nudge Items", changes)
 
         return True
+
+    def _on_labels_toggled(self, is_checked):
+        """Sync label toggle to main controller and repaint scene."""
+        main_window = self.window()
+        if hasattr(main_window, "set_show_labels"):
+            main_window.set_show_labels(is_checked)
+        else:
+            self.set_show_labels(is_checked)
+
+    def set_show_labels(self, show):
+        """Show/hide all object name labels currently on the canvas."""
+        for item in self.items_map.values():
+            if getattr(item, "name_label", None):
+                item.name_label.setVisible(show)
+        self.scene.update()

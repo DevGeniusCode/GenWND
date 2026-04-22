@@ -37,6 +37,7 @@ class MainWindow(QMainWindow):
         self.selected_object = None
         self.parser = None
         self.is_modified = False
+        self.show_labels = True
 
         # Setup exception handling globally
         sys.excepthook = self.handle_exception
@@ -235,6 +236,12 @@ class MainWindow(QMainWindow):
                 object_name = f"{str(self.selected_object)}"
 
         self.status_bar.showMessage(f"{root_path_info} | {file_name} | {object_name}")
+
+    def set_show_labels(self, show):
+        """Global toggle for canvas object name labels."""
+        self.show_labels = bool(show)
+        if hasattr(self, "visual_preview"):
+            self.visual_preview.set_show_labels(self.show_labels)
 
     def update_modified_state(self, modified):
         self.is_modified = modified

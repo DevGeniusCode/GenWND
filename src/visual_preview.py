@@ -799,6 +799,8 @@ class VisualPreview(QWidget):
                 item = self.items_map[uuid]
                 item.setSelected(True)
                 items_to_show.append(item)
+
+        self._is_syncing = False
                 
 
     def update_item_geometry_from_data(self, window):

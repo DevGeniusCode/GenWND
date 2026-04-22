@@ -1,9 +1,12 @@
+import os
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QToolBar, QGraphicsView, QGraphicsScene,
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QSlider,
-    QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy, QApplication
+    QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy, QApplication,
+    QFileDialog, QMessageBox
 )
-from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
+from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction, QImage
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF, QEvent
 
 
@@ -718,6 +721,57 @@ class VisualPreview(QWidget):
         is_enabled = selected_count >= 2
         for action in self.align_actions:
             action.setEnabled(is_enabled)
+
+    def export_scene_image(self, transparent_background=False):
+        """Export the current QGraphicsScene to PNG/JPG."""
+        if self.view_stack.currentWidget() != self.view:
+            QMessageBox.information(self, "Export Screenshot", "No canvas is currently loaded.")
+            return
+
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export Screenshot",
+            "",
+            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg)"
+        )
+        if not file_path:
+            return
+
+        base, ext = os.path.splitext(file_path)
+        if not ext:
+            ext = ".jpg" if "JPEG" in selected_filter else ".png"
+            file_path = base + ext
+
+        ext_lower = ext.lower()
+        img_format = "JPG" if ext_lower in (".jpg", ".jpeg") else "PNG"
+
+        source_rect = self.scene.sceneRect()
+        if source_rect.isEmpty():
+            QMessageBox.warning(self, "Export Screenshot", "Scene is empty; nothing to export.")
+            return
+
+        image_size = source_rect.toAlignedRect().size()
+        if image_size.width() <= 0 or image_size.height() <= 0:
+            QMessageBox.warning(self, "Export Screenshot", "Invalid scene size for export.")
+            return
+
+        image = QImage(image_size, QImage.Format.Format_ARGB32_Premultiplied)
+
+        # JPEG cannot preserve alpha; use canvas color there.
+        use_transparency = transparent_background and img_format == "PNG"
+        if use_transparency:
+            image.fill(Qt.GlobalColor.transparent)
+        else:
+            bg_color = self.view.backgroundBrush().color()
+            image.fill(bg_color.rgba())
+
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        self.scene.render(painter, QRectF(image.rect()), source_rect)
+        painter.end()
+
+        if not image.save(file_path, img_format):
+            QMessageBox.warning(self, "Export Screenshot", f"Failed to save screenshot:\n{file_path}")
 
     def extend_items(self, direction):
         items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]

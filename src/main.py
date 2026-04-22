@@ -119,6 +119,12 @@ class MainWindow(QMainWindow):
         self.toggle_property_editor_button.clicked.connect(self.toggle_property_editor_visibility)
         self.toolbar.addWidget(self.toggle_property_editor_button)
 
+        self.toolbar.addSeparator()
+
+        self.export_screenshot_action = QAction(QIcon.fromTheme("camera-photo"), "Export Screenshot", self)
+        self.export_screenshot_action.triggered.connect(self.export_canvas_screenshot)
+        self.toolbar.addAction(self.export_screenshot_action)
+
     def _setup_ui_layout(self):
         """Creates and arranges the main layout splitters and panels."""
         # File Tree Panel
@@ -181,6 +187,13 @@ class MainWindow(QMainWindow):
         self.status_bar.setStyleSheet("QStatusBar { padding-left: 8px; }")  # <-- Added Padding
         self.setStatusBar(self.status_bar)
         self.update_status_bar()
+
+    def export_canvas_screenshot(self):
+        """Export the current canvas scene as an image."""
+        if hasattr(self, "visual_preview"):
+            # Default uses canvas-colored background.
+            # Change to True if you want transparent PNG by default.
+            self.visual_preview.export_scene_image(transparent_background=False)
 
     def _connect_signals(self):
         """Centralized location for connecting component signals to main window slots."""

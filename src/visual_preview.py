@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy, QApplication
 )
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF, QEvent
 
 
 class GroupResizeOverlay(QGraphicsRectItem):
@@ -123,9 +123,13 @@ class GroupResizeOverlay(QGraphicsRectItem):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        """Clean up resize/drag state."""
         if self.is_resizing:
             self.is_resizing = False
             self.active_handle = None
+            self._is_dragging = False
+            self._axis_lock = None
+            self._drag_origin_pos = None
 
             # Piggyback on the View's mechanism to emit the Undo macro
             if hasattr(self.preview_widget.view, '_drag_start_geometries'):
@@ -209,6 +213,11 @@ class WndGraphicsItem(QGraphicsRectItem):
         self.active_handle = None
         self.is_resizing = False
 
+        # Dragging State
+        self._is_dragging = False
+        self._drag_origin_pos = None
+        self._axis_lock = None  # 'x' => horizontal-only, 'y' => vertical-only
+
     def boundingRect(self):
         """Expand the bounding rectangle to encompass the resize handles to prevent graphical ghosting."""
         margin = (self.HANDLE_SIZE / 2) + self.pen().widthF()
@@ -233,13 +242,22 @@ class WndGraphicsItem(QGraphicsRectItem):
         super().hoverMoveEvent(event)
 
     def mousePressEvent(self, event):
-        """Detect if the user clicked a resize handle or is just dragging the item."""
+        """Detect resize-handle press or start a drag with optional axis-lock support."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_origin_pos = QPointF(self.pos())
+            self._axis_lock = None
+            self._is_dragging = False
+
         if self.isSelected() and self.scene() and len(self.scene().selectedItems()) == 1:
             self.active_handle = self._get_handle_at(event.pos())
             if self.active_handle:
                 self.is_resizing = True
                 event.accept()
                 return
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = True
+
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -290,6 +308,33 @@ class WndGraphicsItem(QGraphicsRectItem):
             else:
                 self.setPen(self.default_pen)
                 self.setZValue(self.original_z)
+
+        elif change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            # Constrain drag to dominant axis while Shift is held.
+            if (
+                self._is_dragging
+                and not self.is_resizing
+                and self._drag_origin_pos is not None
+                and (QApplication.mouseButtons() & Qt.MouseButton.LeftButton)
+            ):
+                modifiers = QApplication.keyboardModifiers()
+                if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                    proposed = QPointF(value)
+                    dx = proposed.x() - self._drag_origin_pos.x()
+                    dy = proposed.y() - self._drag_origin_pos.y()
+
+                    if self._axis_lock is None:
+                        self._axis_lock = 'x' if abs(dx) >= abs(dy) else 'y'
+
+                    if self._axis_lock == 'x':
+                        proposed.setY(self._drag_origin_pos.y())
+                    else:
+                        proposed.setX(self._drag_origin_pos.x())
+
+                    return proposed
+                else:
+                    # Shift released mid-drag -> unlock axis
+                    self._axis_lock = None
 
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             if self.scene() and not self.preview_widget._is_syncing and not self.is_resizing:
@@ -498,6 +543,7 @@ class VisualPreview(QWidget):
 
         self._setup_toolbar()
         self._setup_view()
+        self._setup_shortcut_hud()
         self._setup_bottom_bar()
 
     def _setup_toolbar(self):
@@ -596,6 +642,40 @@ class VisualPreview(QWidget):
         self.bottom_layout.addWidget(self.zoom_label)
 
         self.layout.addWidget(self.bottom_bar)
+
+    def _setup_shortcut_hud(self):
+        """Creates a fixed overlay hint bar over the canvas viewport."""
+        self.shortcut_hud = QLabel(
+            "Arrows: Nudge | Shift+Arrows: 10px | Shift+Drag: Axis Lock | Ctrl+Wheel: Zoom",
+            self.view.viewport(),
+        )
+        self.shortcut_hud.setObjectName("shortcutHud")
+        self.shortcut_hud.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.shortcut_hud.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.shortcut_hud.show()
+
+        # Track viewport size changes so the HUD remains centered.
+        self.view.viewport().installEventFilter(self)
+        self._position_shortcut_hud()
+
+
+    def _position_shortcut_hud(self):
+        """Keeps the HUD pinned to top-center of the visible viewport."""
+        if not hasattr(self, "shortcut_hud"):
+            return
+
+        self.shortcut_hud.adjustSize()
+        vp = self.view.viewport()
+        x = max(8, (vp.width() - self.shortcut_hud.width()) // 2)
+        y = 8  # slight offset from top edge
+        self.shortcut_hud.move(x, y)
+        self.shortcut_hud.raise_()
+
+
+    def eventFilter(self, source, event):
+        if source == self.view.viewport() and event.type() == QEvent.Type.Resize:
+            self._position_shortcut_hud()
+        return super().eventFilter(source, event)
 
     def _update_zoom_ui(self, level):
         """Updates the zoom slider and label when the zoom level changes."""
@@ -757,16 +837,19 @@ class VisualPreview(QWidget):
     def select_items(self, uuids):
         """Programmatically select items passed down from the Object Tree."""
         self._is_syncing = True
-        self.scene.clearSelection()
-        items_to_show = []
-        
-        for uuid in uuids:
-            if uuid in self.items_map:
-                item = self.items_map[uuid]
-                item.setSelected(True)
-                items_to_show.append(item)
+        self.scene.blockSignals(True)
 
-        self._is_syncing = False
+        try:
+            self.scene.clearSelection()
+            for uuid in uuids:
+                item = self.items_map.get(uuid)
+                if item:
+                    item.setSelected(True)
+        finally:
+            self.scene.blockSignals(False)
+            self._is_syncing = False
+
+        self.handle_selection_changed()
                 
 
     def update_item_geometry_from_data(self, window):

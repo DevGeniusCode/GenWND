@@ -211,3 +211,15 @@ QRadioButton:checked {
     font-weight: bold;
 }
 
+/* =========================================
+   Shortcut HUD Styling
+   ========================================= */
+QLabel#shortcutHud {
+    background-color: rgba(35, 35, 35, 170); /* 150-180 alpha target */
+    color: #e6e6e6;
+    border: 1px solid rgba(255, 255, 255, 30);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: "Segoe UI";
+}

@@ -94,6 +94,14 @@ Execute the main entry point to launch the editor:
 python src/main.py
 ```
 
+### Building an Executable
+To create a standalone executable, use PyInstaller:
+```bash
+python -m PyInstaller --clean GenWND.spec 
+```
+
+You can find the generated executable in the `dist/` directory.
+
 ---
 
 ## 📄 WND File Structure (Internal Representation)
@@ -136,7 +144,7 @@ parser = {
         )
     ]
 }
-```
+
 
 ---
 

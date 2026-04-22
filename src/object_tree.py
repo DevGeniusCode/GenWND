@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTreeView, QLabel, QPushButton, QMenu, QSizePolicy
 )
 from PyQt6.QtGui import QStandardItemModel, QStandardItem, QColor, QCursor
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice, QItemSelectionModel, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QByteArray, QDataStream, QIODevice, QItemSelectionModel, QTimer, QEvent
 
 from src.window.window_properties import ObjectFactory
 from commands import CommandAddObject, CommandDeleteObject, CommandMoveObject
@@ -218,6 +218,7 @@ class ObjectTree(QWidget):
         self.tree_view.setDragDropMode(QTreeView.DragDropMode.InternalMove)
         self.tree_view.setSelectionMode(QTreeView.SelectionMode.ExtendedSelection)
         self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree_view.installEventFilter(self)
 
         self.save_button = QPushButton("Save to file")
         self.reset_button = QPushButton("Reset from file")
@@ -533,3 +534,28 @@ class ObjectTree(QWidget):
         self._populate_tree(self.model.parser_windows, self.model.invisibleRootItem())
         self._is_updating_checks = False
         self._restore_tree_state(state)
+
+    def eventFilter(self, source, event):
+        """Intercepts arrow keys when the tree is focused to nudge items on the canvas instead of navigating."""
+        if source == self.tree_view and event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
+
+                # Check if items are currently selected before hijacking the keyboard navigation
+                if self.tree_view.selectionModel().hasSelection():
+                    dx, dy = 0, 0
+                    if event.key() == Qt.Key.Key_Up: dy = -1
+                    elif event.key() == Qt.Key.Key_Down: dy = 1
+                    elif event.key() == Qt.Key.Key_Left: dx = -1
+                    elif event.key() == Qt.Key.Key_Right: dx = 1
+
+                    # Match 10px shift behavior
+                    if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+                        dx *= 10
+                        dy *= 10
+
+                    if hasattr(self.main_window, 'visual_preview'):
+                        success = self.main_window.visual_preview.nudge_selection(dx, dy)
+                        if success:
+                            return True  # Terminate standard focus-switching event behavior
+
+        return super().eventFilter(source, event)

@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QToolBar, QGraphicsView, QGraphicsScene,
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QSlider,
-    QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy
+    QLabel, QHBoxLayout, QPushButton, QStackedLayout, QSizePolicy, QApplication
 )
 from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF, QRectF, QLineF
@@ -456,59 +456,25 @@ class PreviewGraphicsView(QGraphicsView):
     def keyPressEvent(self, event):
         """Allows nudging selected items pixel-by-pixel using arrow keys."""
         if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
-            selected_items = self.scene().selectedItems()
-            wnd_items = [i for i in selected_items if isinstance(i, WndGraphicsItem)]
-
-            if not wnd_items:
-                super().keyPressEvent(event)
-                return
-
             dx, dy = 0, 0
-            if event.key() == Qt.Key.Key_Up:
-                dy = -1
-            elif event.key() == Qt.Key.Key_Down:
-                dy = 1
-            elif event.key() == Qt.Key.Key_Left:
-                dx = -1
-            elif event.key() == Qt.Key.Key_Right:
-                dx = 1
+            if event.key() == Qt.Key.Key_Up: dy = -1
+            elif event.key() == Qt.Key.Key_Down: dy = 1
+            elif event.key() == Qt.Key.Key_Left: dx = -1
+            elif event.key() == Qt.Key.Key_Right: dx = 1
 
             # Option: Hold Shift to jump 10 pixels instead of 1
             if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
                 dx *= 10
                 dy *= 10
 
-            changes = []
+            # Route to our newly centralized nudge handler
             preview_widget = self.parent()
+            success = preview_widget.nudge_selection(dx, dy)
 
-            # Prevent triggering individual signal updates for every single pixel move
-            preview_widget._is_syncing = True
-
-            for item in wnd_items:
-                old_ul = (int(item.scenePos().x()), int(item.scenePos().y()))
-                old_br = (int(item.scenePos().x() + item.rect().width()),
-                          int(item.scenePos().y() + item.rect().height()))
-
-                new_x = item.scenePos().x() + dx
-                new_y = item.scenePos().y() + dy
-
-                # Tell Qt we are modifying the geometry
-                item.prepareGeometryChange()
-                item.setPos(new_x, new_y)
-
-                new_ul = (int(new_x), int(new_y))
-                new_br = (int(new_x + item.rect().width()), int(new_y + item.rect().height()))
-
-                preview_widget.handle_item_moved(item.window, new_ul, new_br)
-                changes.append((item.window_uuid, old_ul, old_br, new_ul, new_br))
-
-            preview_widget._is_syncing = False
-
-            # Emit as a single macro so the undo stack handles the nudge properly
-            if changes:
-                preview_widget.bulk_geometry_change_signal.emit("Nudge Items", changes)
-
-            event.accept()
+            if success:
+                event.accept()
+            else:
+                super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
 
@@ -925,3 +891,39 @@ class VisualPreview(QWidget):
 
             if hasattr(window, 'children') and window.children:
                 self._render_windows(window.children, depth + 1)
+
+    def nudge_selection(self, dx, dy):
+        """Nudges all currently selected items on the canvas by dx, dy and emits a single undo macro."""
+        wnd_items = [i for i in self.scene.selectedItems() if isinstance(i, WndGraphicsItem)]
+
+        if not wnd_items:
+            return False  # Indicate nothing was nudged
+
+        changes = []
+        self._is_syncing = True
+
+        for item in wnd_items:
+            old_ul = (int(item.scenePos().x()), int(item.scenePos().y()))
+            old_br = (int(item.scenePos().x() + item.rect().width()),
+                      int(item.scenePos().y() + item.rect().height()))
+
+            new_x = item.scenePos().x() + dx
+            new_y = item.scenePos().y() + dy
+
+            # Tell Qt we are modifying the geometry
+            item.prepareGeometryChange()
+            item.setPos(new_x, new_y)
+
+            new_ul = (int(new_x), int(new_y))
+            new_br = (int(new_x + item.rect().width()), int(new_y + item.rect().height()))
+
+            self.handle_item_moved(item.window, new_ul, new_br)
+            changes.append((item.window_uuid, old_ul, old_br, new_ul, new_br))
+
+        self._is_syncing = False
+
+        # Emit as a single macro so the undo stack handles the multiple objects properly
+        if changes:
+            self.bulk_geometry_change_signal.emit("Nudge Items", changes)
+
+        return True

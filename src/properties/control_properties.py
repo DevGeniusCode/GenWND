@@ -153,7 +153,12 @@ class ControlForm(QWidget):
             elif isinstance(value, int):
                 # If the property is an integer, create a QSpinBox
                 prop_spinbox = QSpinBox(self)
+
+                # Handle map list length limit
+                prop_spinbox.setMaximum(1200)
+                prop_spinbox.setMinimum(0)
                 prop_spinbox.setValue(value)
+
                 prop_spinbox.valueChanged.connect(
                     lambda val, p=prop: self.update_sub_property(f'{self.type}DATA', p, val)
                 )

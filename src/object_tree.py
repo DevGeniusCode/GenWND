@@ -275,6 +275,10 @@ class ObjectTree(QWidget):
         self.model.clear()
         self.model.setHorizontalHeaderLabels(["Object Tree"])
         self._populate_tree(windows, self.model.invisibleRootItem())
+
+        # Initial file load should start fully expanded
+        self.tree_view.expandAll()
+
         self._is_updating_checks = False
 
     def _populate_tree(self, windows, parent_item):
@@ -292,8 +296,6 @@ class ObjectTree(QWidget):
             parent_item.appendRow(item)
             if hasattr(window, 'children'):
                 self._populate_tree(window.children, item)
-
-        self.tree_view.expandAll()
 
     def on_item_changed(self, item):
         """Triggered when a checkbox in the Object Tree is clicked by the user."""
@@ -506,12 +508,17 @@ class ObjectTree(QWidget):
 
     def _restore_tree_state(self, state):
         """Restores tree state after a full structural refresh."""
+        expanded_uuids = state.get('expanded', set())
+
         def traverse(parent_index):
             for row in range(self.model.rowCount(parent_index)):
                 idx = self.model.index(row, 0, parent_index)
                 item = self.model.itemFromIndex(idx)
-                if item and item.data() and item.data().window_uuid in state['expanded']:
-                    self.tree_view.setExpanded(idx, True)
+
+                if item and item.data():
+                    is_expanded = item.data().window_uuid in expanded_uuids
+                    self.tree_view.setExpanded(idx, is_expanded)
+
                 traverse(idx)
 
         traverse(self.tree_view.rootIndex())

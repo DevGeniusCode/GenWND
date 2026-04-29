@@ -223,3 +223,318 @@ QLabel#shortcutHud {
     font-size: 11px;
     font-family: "Segoe UI";
 }
+/* =========================================
+   General Buttons
+   ========================================= */
+QPushButton, QToolButton {
+    background-color: #333333;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 4px 10px;
+}
+
+QPushButton:hover, QToolButton:hover {
+    background-color: #444444;
+}
+
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #222222;
+}
+
+/* =========================================
+   SpinBoxes (Number Inputs)
+   ========================================= */
+QSpinBox, QDoubleSpinBox {
+    background-color: #333333;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 2px;
+}
+
+QSpinBox:focus, QDoubleSpinBox:focus {
+    border: 1px solid #717171;
+}
+
+/* =========================================
+   ComboBoxes (Dropdowns)
+   ========================================= */
+QComboBox {
+    background-color: #333333;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 2px 5px;
+}
+
+QComboBox:focus {
+    border: 1px solid #717171;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    selection-background-color: #444444;
+}
+
+/* =========================================
+   CheckBoxes
+   ========================================= */
+QCheckBox {
+    color: #d4d4d4;
+}
+
+/* (Optional) Style the checkbox indicator itself for a flatter dark look */
+QCheckBox::indicator {
+    width: 13px;
+    height: 13px;
+    background-color: #333333;
+    border: 1px solid #555555;
+    border-radius: 2px;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #717171;
+}
+/* =========================================
+   Main Window
+   ========================================= */
+QMainWindow {
+    background-color: #121212;
+    color: #ffffff;
+}
+
+/* =========================================
+   TreeView
+   ========================================= */
+QTreeView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: none;
+    border-radius: 5px;
+}
+QTreeView::item:selected {
+    background-color: #444444;
+    color: #ffffff;
+}
+QTreeView::item:hover {
+    background-color: #333333;
+}
+QTreeView::item:!selected {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+/* =========================================
+   Listbox / ScrollListBox
+   ========================================= */
+QListWidget, QListView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #333333;
+}
+QListWidget::item:selected, QListView::item:selected {
+    background-color: #444444;
+    color: #ffffff;
+}
+QListWidget::item:hover, QListView::item:hover {
+    background-color: #333333;
+}
+
+/* =========================================
+   Labels
+   ========================================= */
+QLabel {
+    background-color: transparent;
+    color: #d4d4d4;
+}
+
+/* =========================================
+   Scrollbars
+   ========================================= */
+QScrollBar:vertical {
+    background: #1e1e1e;
+    width: 12px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #444444;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #555555;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none;
+    border: none;
+}
+
+/* =========================================
+   GroupBoxes
+   ========================================= */
+QGroupBox {
+    border: 1px solid #333333;
+    margin-top: 10px;
+    color: #d4d4d4;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 3px;
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+/* =========================================
+   Buttons
+   ========================================= */
+QPushButton, QToolButton {
+    background-color: #2d2d2d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+QPushButton:hover, QToolButton:hover {
+    background-color: #3d3d3d;
+}
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #1a1a1a;
+}
+
+/* =========================================
+   Other Controls (LineEdit, SpinBox, ComboBox, CheckBox)
+   ========================================= */
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #333333;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 5px;
+}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 1px solid #717171;
+}
+QComboBox QAbstractItemView {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #555555;
+    selection-background-color: #444444;
+}
+QCheckBox {
+    color: #d4d4d4;
+}
+QCheckBox::indicator {
+    width: 13px;
+    height: 13px;
+    background-color: #333333;
+    border: 1px solid #555555;
+    border-radius: 2px;
+}
+QCheckBox::indicator:checked {
+    background-color: #717171;
+}
+/* =========================================
+   Dialogs & MessageBox
+   ========================================= */
+QDialog, QMessageBox {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #333333;
+    border-radius: 6px;
+}
+
+/* Message Text */
+QMessageBox QLabel {
+    color: #d4d4d4;
+    background-color: transparent;
+}
+
+/* Icono (si quieres oscurecer el fondo detrás del icono) */
+QMessageBox QLabel#qt_msgboxex_icon {
+    background-color: transparent;
+}
+
+/* Buttons Inside Dialog */
+QMessageBox QPushButton {
+    background-color: #2d2d2d;
+    color: #ffffff;
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 12px;
+}
+QMessageBox QPushButton:hover {
+    background-color: #3d3d3d;
+}
+QMessageBox QPushButton:pressed {
+    background-color: #1a1a1a;
+}
+/* =========================================
+   Text Boxes (Raw Text, Editors)
+   ========================================= */
+QPlainTextEdit, QTextEdit {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    border: 1px solid #333333;
+    border-radius: 4px;
+    padding: 6px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+}
+
+/* Text Selection */
+QPlainTextEdit::selection, QTextEdit::selection {
+    background-color: #444444;
+    color: #ffffff;
+}
+
+/* Scroll Bar Inside Editor */
+QPlainTextEdit QScrollBar:vertical, QTextEdit QScrollBar:vertical {
+    background: #1e1e1e;
+    width: 12px;
+}
+QPlainTextEdit QScrollBar::handle:vertical, QTextEdit QScrollBar::handle:vertical {
+    background: #444444;
+    border-radius: 6px;
+}
+QPlainTextEdit QScrollBar::handle:vertical:hover, QTextEdit QScrollBar::handle:vertical:hover {
+    background: #555555;
+}
+/* =========================================
+   Scrollbars (Dark)
+   ========================================= */
+QScrollBar:horizontal {
+    background: #1e1e1e;
+    height: 12px;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: #444444;
+    border-radius: 6px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #555555;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background: #1e1e1e;
+    width: 12px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #444444;
+    border-radius: 6px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #555555;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none;
+    border: none;
+}
